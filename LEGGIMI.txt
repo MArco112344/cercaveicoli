@@ -98,6 +98,29 @@ COME VENGONO CONTROLLATI GLI ANNUNCI
       o il tetto panoramico) non entra tra i verificati: lo vedi spuntando
       "Mostra anche gli annunci che non indicano tutti i dati richiesti".
 
+  Modelli diversi con un nome simile restano fuori. Se cerchi "C3" non
+  entrano le C3 Aircross, con "Yaris" le Yaris Cross, con "Range Rover" le
+  Evoque, le Velar e le Sport, con "Tiguan" le Allspace. Quando succede, sotto
+  "Ho capito" c'e' scritto quali modelli restano fuori: per cercarli scrivi il
+  nome intero ("c3 aircross"). Le varianti della stessa auto restano dentro
+  (Golf Variant, A4 Allroad, Sandero Stepway).
+
+  Lo stesso vale per gli allestimenti che hanno il nome di una versione
+  sportiva: "308 gt" non prende le GT Line, "clio rs" non prende le RS Line,
+  "classe a amg" non prende le AMG Line, "x5 m" non prende le X5 con il
+  pacchetto M Sport. Per avere quelle scrivi "gt line", "amg line", "m sport".
+
+  La generazione si puo' scrivere con il numero: "clio 4", "golf 7".
+  Vengono scartati gli annunci che dichiarano un'altra generazione ("Clio V",
+  "Golf 8"); restano quelli che non la dichiarano.
+
+LA STESSA AUTO SU PIU' SITI
+  La stessa auto pubblicata su piu' siti occupa una riga sola. Sotto il nome
+  trovi "anche su ..." con il collegamento agli altri siti. Due annunci sono
+  la stessa auto se hanno lo stesso titolo, prezzo, chilometri e anno, oppure
+  lo stesso prezzo, lo stesso anno e gli stessi chilometri precisi (per
+  esempio 87.432, non 90.000) anche con un titolo scritto in un altro modo.
+
 I SITI
   Il programma legge da solo 47 siti (erano 30). Sono nuovi, tra gli altri:
   Spoticar e Renew in Germania, Belgio, Francia e Spagna, L'argus, auto.de,

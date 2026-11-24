@@ -68,9 +68,9 @@ BOOT = secrets.token_hex(6)  # cambia a ogni avvio: la pagina se ne accorge e si
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 MAX_PAGES_PER_SCAN = 60
-VERSION = '2.5'
+VERSION = '2.6'
 # Lettura diretta: il programma si presenta con il proprio nome, senza fingersi un browser
-UA = "CercaveicoliImport/2.5 (ricerca auto avviata dall'utente; poche pagine per sito)"
+UA = "CercaveicoliImport/2.6 (ricerca auto avviata dall'utente; poche pagine per sito)"
 ROBOT_NAME = 'cercaveicoliimport'
 DIRECT_GAP = float(os.environ.get('CV_DIRECT_GAP') or 1.2)  # secondi tra due letture dello stesso sito
 TEST_ORIGIN = os.environ.get('CV_TEST_ORIGIN', '').rstrip('/')  # solo per le prove
@@ -1166,8 +1166,17 @@ def seats_hint(text):
 FAMILY = {'serie', 'classe', 'klasse', 'class', 'clase', 'model', 'range', 'grand', 'santa', 'land'}
 ROMAN_N = {'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10}
 ROMAN = set(ROMAN_N)
-GLUE_PREFIX = {'blue', 'e', 'eco', 'bi', 'twin', 'multi', 'x', 's'}  # "hdi" vale anche per BlueHDi, "tsi" per eTSI, "drive" per xDrive
+GLUE_PREFIX = {'blue', 'e', 'eco', 'bi', 'twin', 'multi'}  # "hdi" vale anche per BlueHDi, "tsi" per eTSI
+# lettere che si attaccano solo a certe parole: xDrive, sDrive, S line. Non a tutte: una Kia XCeed non e' una Ceed
+GLUE_PREFIX_ONLY = {'x': ('drive', 'line'), 's': ('drive', 'tronic', 'line')}
 GLUE_SUFFIX = {'paket', 'pakket', 'pack', 'package', 'edition'}  # "sport" vale anche per Sportpaket
+# allestimenti che portano il nome di una versione sportiva senza esserlo: M Sport, M Paket, AMG Line, AMG Styling
+M_PACK = r'(?:sport|paket|pakket|technik|performance|aerodynamik)'
+AMG_PACK = r'(?:paket|pakket|styling|sportpaket|optik|look|exterieur|interieur)'
+# modelli in cui il numero fa parte del nome e non e' la generazione: "ioniq 5" non e' una Ioniq
+NUMBER_NAMED = {'ioniq', 'atto'}
+# sigle che insieme a una cifra fanno il nome del modello: ID.3, RS 3, EV6, MX-5
+NAME_STEMS = {'id', 'rs', 'ev', 'mx', 'cx', 'sq', 'xc', 'eq', 'bz'}
 # dopo "golf 5" non deve seguire "porte", "Gang", "Jahre"...: allora il numero non e' la generazione
 GEN_AFTER = (r'(?![a-z0-9])(?![.,])(?!\s*-?\s*(?:tur|tuer|trg|port|puert|door|deur|sitz|post|plac|plaz|gang|speed|vitess|march|hand|jahr|year|ans|anos|anni|monat|mesi|mois'
              r'|zon|fach|zyl|cil|cyl|schl|key|kw|ps|cv|ch|x|p|v|er))')
@@ -1176,7 +1185,11 @@ UNIT_AFTER = r'(?!\s?(?:ps|cv|ch|kw|pk|hp|bhp|km|tkm|nm|€|eur))(?!\.\d{3})'
 
 def _norm_compounds(plain):
     """"R-Line", "S line", "e-tron", "T-Roc" diventano una parola sola: cosi' "golf r" non vale per una Golf R-Line."""
-    plain = re.sub(r'(?<![a-z0-9])(st|[a-z])[\s-](line|tronic)(?![a-z0-9])', r'\1\2', plain)
+    plain = re.sub(r'(?<![a-z0-9])r\.\s?s\.?(?![a-z0-9])', 'rs', plain)  # "R.S. Line"
+    plain = re.sub(r'(?<![a-z0-9])(st|gt|rs|amg|[a-z])[\s-](line|tronic)(?![a-z0-9])', r'\1\2', plain)
+    plain = re.sub(r'(?<![a-z0-9])gr[\s-]sport(?![a-z0-9])', 'grsport', plain)  # Toyota GR Sport non e' una GR
+    plain = re.sub(r'(?<![a-z0-9])m[\s-](?=' + M_PACK + ')', 'm', plain)  # BMW M Sport, M Sportpaket, M Paket: non e' una M
+    plain = re.sub(r'(?<![a-z0-9])amg[\s-](?=' + AMG_PACK + ')', 'amg', plain)  # AMG Styling, AMG Paket: non e' una AMG
     return re.sub(r'(?<![a-z0-9-])([a-z])-(?!klasse|class|clas)(?=[a-z]{2,})', r'\1', plain)
 
 
@@ -1189,6 +1202,21 @@ def _word_parts(plain):
         for si, x in enumerate(sub):
             parts.append((x, ti, si == 0, si == len(sub) - 1))
     return toks, parts
+
+
+def _glued(tok, ck):
+    """ck dentro una parola composta: BlueHDi, eTSI, xDrive, Sportpaket, M Sport."""
+    if tok == ck:
+        return False
+    for pre, pack in (('m', M_PACK), ('amg', AMG_PACK)):  # "msportpaket" (M Sportpaket) contiene "sport" e "sportpaket"
+        rest = tok[len(pre):]
+        if tok.startswith(pre) and rest and re.match(pack, rest) and (rest == ck or (rest.startswith(ck) and rest[len(ck):] in GLUE_SUFFIX)):
+            return True
+    if tok.endswith(ck):
+        pre = tok[:-len(ck)]
+        if pre in GLUE_PREFIX or ck in GLUE_PREFIX_ONLY.get(pre, ()):
+            return True
+    return tok.startswith(ck) and tok[len(ck):] in GLUE_SUFFIX and ck != 'amg'
 
 
 def _has_run(ck, parts):
@@ -1222,8 +1250,8 @@ def words_match(title, make, words, extra=''):
     comp = ''.join(toks)
     mk = _plain(make or '')
     mkpat = r'[\s-]?'.join(re.escape(x) for x in re.findall(r'[a-z0-9]+', mk))
-    w = [x for x in (_plain(v) for v in (words or [])) if re.search(r'[a-z0-9]', x)]
-    i, first, model = 0, True, ''
+    w = [x for x in _norm_compounds(' '.join(_plain(v) for v in (words or []))).split() if re.search(r'[a-z0-9]', x)]
+    i, first, model, model0 = 0, True, '', ''
     while i < len(w):
         cur, nxt = w[i], (w[i + 1] if i + 1 < len(w) else None)
         ck = re.sub(r'[^a-z0-9]', '', cur)
@@ -1231,7 +1259,7 @@ def words_match(title, make, words, extra=''):
         if cur in FAMILY and n2:
             ok = (cur + n2) in comp
             if 'bmw' in mk and cur == 'serie' and n2.isdigit():  # 320d, 330e, 3er, 3 Series, 3-serie, 3 Reeks: non "306 PS" ne' "12.320 EUR"
-                ok = (ok or bool(re.search(r'(?<![a-z0-9.,])' + n2 + r'[1-6]\d' + UNIT_AFTER + r'(?:\s?[a-z]{1,2})?(?![a-z0-9])', plain))
+                ok = (ok or bool(re.search(r'(?<![a-z0-9.,])m?' + n2 + r'[1-6]\d' + UNIT_AFTER + r'(?:\s?[a-z]{1,2})?(?![a-z0-9])', plain))
                       or (n2 + 'er') in tokens or any(x in comp for x in ('series' + n2, n2 + 'serie', n2 + 'reeks', 'reeks' + n2, 'reihe' + n2)))
             elif 'bmw' in mk and cur == 'serie' and n2 in ('x', 'z', 'm'):  # serie X = X1...X7, serie Z = Z3, Z4, serie M = M2...M8
                 ok = ok or bool(re.search(r'(?<![a-z0-9])' + n2 + r'\d(?![0-9])', plain))
@@ -1249,9 +1277,15 @@ def words_match(title, make, words, extra=''):
                     return False
             elif model:  # generazione: "golf 7" non e' "Golf VIII"
                 want = ROMAN_N.get(cur) or int(cur)
-                gens = [ROMAN_N.get(g) or int(g) for g in re.findall(r'(?<![a-z0-9])' + re.escape(model) + r'[\s-]*(viii|vii|vi|iv|ix|iii|ii|[1-9])' + GEN_AFTER, tplain)]
-                if gens and want not in gens:
-                    return False
+                if model in NUMBER_NAMED and cur.isdigit():
+                    if not re.search(r'(?<![a-z0-9])' + re.escape(model) + r'[\s-]*' + cur + r'(?![0-9])', plain):
+                        return False
+                else:
+                    names = '|'.join(re.escape(x) for x in sorted(set((model, model0 or model))))
+                    gens = [ROMAN_N.get(g) or int(g) for g in re.findall(
+                        r'(?<![a-z0-9])(?:' + names + r')[\s-]*(viii|vii|vi|iv|ix|iii|ii|v(?!\s?(?:6|8|10|12)(?![0-9]))|[1-9])' + GEN_AFTER, tplain)]
+                    if gens and want not in gens:
+                        return False
             i += 1
             continue
         if n2:  # "c 220 d", "320 d", "x5 m", "s line", "m sport": valgono anche scritti attaccati
@@ -1267,22 +1301,65 @@ def words_match(title, make, words, extra=''):
             if best is not None:
                 i, first, model = best + 1, False, ''
                 continue
+            if first and re.fullmatch(r'\d', n2) and (re.fullmatch(r'[a-z]', ck) or ck in NAME_STEMS):
+                return False  # "id 3" non e' una ID.4, "rs 3" non e' una RS 5: qui il numero fa parte del nome
         joined = bool(mkpat) and re.search(r'(?<![a-z0-9])' + mkpat + r'[\s-]?' + re.escape(ck) + r'(?![a-z0-9])', plain) is not None  # "Mazda3"
         if ck.isdigit():
             if len(ck) == 1:  # "mazda 3" non e' "CX-3"
                 hit = joined or re.search(r'(?<![a-z0-9-])' + ck + r'(?![a-z0-9])', tplain or plain) is not None
             else:  # "500" non e' "500X"; "320" vale per 320d, 320i, 330e; "220" per C220d
-                hit = joined or any(t == ck or re.fullmatch(r'(?:[a-z]{1,3})?' + ck + r'(?:[a-z]{1,2})?', t) and (t[:1].isalpha() or re.fullmatch(ck + r'[die]', t)) for t in toks)
+                hit = joined or any(t == ck or re.fullmatch(r'(?:[a-z]{1,3})?' + ck + r'(?:[a-z]{1,2})?', t) and (t[:1].isalpha() or re.fullmatch(ck + r'(?:[diecs]|cc|sw)', t)) for t in toks)
         elif len(ck) == 1:
             hit = joined or re.search(r'(?<![a-z0-9-])' + ck + r'(?![a-z0-9-])', plain) is not None
         else:
-            hit = joined or _has_run(ck, parts) or (ck.isalpha() and len(ck) >= 3 and any(
-                (x[0].endswith(ck) and x[0][:-len(ck)] in GLUE_PREFIX) or (x[0].startswith(ck) and x[0][len(ck):] in GLUE_SUFFIX) for x in parts))
+            hit = joined or _has_run(ck, parts) or (ck.isalpha() and (len(ck) >= 3 or ck == 'up') and any(_glued(x[0], ck) for x in parts))
         if not hit:
             return False
         model = ck if ck.isalpha() and len(ck) >= 3 else ''
+        model0 = model0 or model
         i, first = i + 1, False
     return True
+
+
+# ---- modelli diversi con un nome simile ---------------------------------------
+GEN_BETWEEN = r'[\s._-]*(?:(?:viii|vii|vi|iv|v|iii|ii|i|\d)[\s_-]+)?'
+_SIB_CACHE = {}
+
+
+def sibling_re(phrase):
+    """Dal nome di un modello ("C3 Aircross", "Q8 * e-tron") l'espressione che lo riconosce in un titolo.
+    L'asterisco vale per qualche parola in mezzo: "Q8 Sportback 55 e-tron"."""
+    key = str(phrase)
+    if key not in _SIB_CACHE:
+        pat, gap = '', GEN_BETWEEN
+        for word in _plain(key).split():
+            if word == '*':
+                gap = r'(?:[\s._-]+[a-z0-9.,]+){0,4}?[\s._-]+'
+                continue
+            bits = [re.escape(b) for b in re.findall(r'[a-z0-9]+', word)]
+            if not bits:
+                continue
+            pat += (gap if pat else '') + r'[\s._-]*'.join(bits)
+            gap = GEN_BETWEEN
+        # dopo un numero ("Ioniq 5") non devono seguire porte o posti: "Ioniq 5-Tuerer" e' una Ioniq a cinque porte
+        tail = r'(?![.,]\d)(?!\s*-?\s*(?:tur|tuer|trg|port|puert|door|deur|sitz|post|plac|plaz))' if pat[-1:].isdigit() else ''
+        _SIB_CACHE[key] = re.compile(r'(?<![a-z0-9])' + pat + r'(?![a-z0-9])' + tail + r'(?![\s-]*(?:paket|pakket|pack|package))') if pat else None
+    return _SIB_CACHE[key]
+
+
+def sibling_hit(crit, text):
+    """Nome del modello diverso (tra quelli da tenere fuori) che il testo dichiara, oppure ''."""
+    names = crit.get('siblings')
+    if not isinstance(names, list):
+        return ''
+    plain = _plain(text)
+    for phrase in names[:40]:
+        if not isinstance(phrase, str) or len(phrase) > 40:
+            continue
+        rx = sibling_re(phrase)
+        if rx is not None and rx.search(plain):
+            return str(phrase).replace(' *', '')
+    return ''
 
 
 # ---- indirizzi ---------------------------------------------------------------
@@ -2488,6 +2565,9 @@ def judge(item, crit, trust=()):
                 missing.append('modello nel titolo')  # citato solo nel testo della scheda: non basta per darlo come verificato
             else:
                 return 'scartato', ['modello o parole chiave non presenti']
+        other = sibling_hit(crit, title + ' | ' + slug)
+        if other:
+            return 'scartato', ['altro modello: ' + other]
     elif aliases:
         comp = _compact(' '.join((title, slug, card)))
         if not any(a in comp for a in aliases):
@@ -2867,28 +2947,62 @@ def scan_discover(cfg, d, known):
     return 'ok', out, '%d siti nuovi' % len(out)
 
 
+def _host(u):
+    return urlparse(u or '').netloc.lower().replace('www.', '')
+
+
+def _exact_km(x):
+    """Chilometri precisi (non tondi): insieme al prezzo identificano la stessa auto anche quando il titolo e' scritto diversamente."""
+    km = x.get('km')
+    return km is not None and km >= 1000 and km % 500 != 0
+
+
 def _add_results(job, items):
-    """Aggiunge gli annunci senza doppioni: stesso indirizzo, oppure stesso annuncio pubblicato su due siti gemelli
-    (stesso titolo, prezzo, chilometri e anno): in quel caso resta il primo, con l'elenco degli altri siti."""
+    """Aggiunge gli annunci senza doppioni: stesso indirizzo, oppure la stessa auto pubblicata su due siti. E' la stessa auto se
+    titolo, prezzo, chilometri e anno coincidono, oppure se coincidono prezzo, anno e chilometri precisi (non tondi) anche con un
+    titolo diverso. In quel caso resta il primo annuncio, con l'elenco degli altri siti e i loro indirizzi."""
     keys = set(url_key(x['url']) for x in job['results'])
-    twins = dict(((_compact(x.get('title'))[:60], x.get('price'), x.get('km'), x.get('year')), x) for x in job['results'] if x.get('km') is not None)
+    for x in job['results']:
+        keys.update(url_key(u) for u in (x.get('alsoUrl') or []))
+    sig_of = lambda x: (_compact(x.get('title'))[:60], x.get('price'), x.get('km'), x.get('year'))
+    twins = dict((sig_of(x), x) for x in job['results'] if x.get('km') is not None)
+    cars = {}
+    for x in job['results']:
+        if _exact_km(x):
+            cars.setdefault((x.get('price'), x.get('km')), []).append(x)
     for x in items:
         k = url_key(x['url'])
         if k in keys:
             continue
         keys.add(k)
-        sig = (_compact(x.get('title'))[:60], x.get('price'), x.get('km'), x.get('year'))
+        sig = sig_of(x)
         first = twins.get(sig) if x.get('km') is not None else None
-        if first is not None and first.get('site') != x.get('site'):
-            if x.get('site') not in (first.get('also') or []):
-                first.setdefault('also', []).append(x.get('site'))
+        if first is not None and (first.get('site'), _host(first.get('url'))) == (x.get('site'), _host(x.get('url'))):
+            first = None  # stesso sito e stesso titolo: due auto uguali dello stesso venditore
+        if first is None and _exact_km(x):
+            first = next((c for c in cars.get((x.get('price'), x.get('km')), [])
+                          if _host(c.get('url')) != _host(x.get('url')) and (c.get('year') == x.get('year') or None in (c.get('year'), x.get('year')))), None)
+        if first is not None:
+            label = x.get('site') or _host(x.get('url'))
+            if label == first.get('site'):
+                label = '%s %s' % (label, x.get('country') or '')  # lo stesso sito in un altro paese
+            if label.strip() not in (first.get('also') or []):
+                first.setdefault('also', []).append(label.strip())
+                first.setdefault('alsoUrl', []).append(x['url'])
             if first.get('unk') and not x.get('unk'):
                 first['unk'] = []  # l'altro sito dichiara anche i dati che qui mancavano
+            for f in ('year', 'gear', 'fuel', 'power', 'seller'):
+                if first.get(f) in (None, '') and x.get(f) not in (None, ''):
+                    first[f] = x[f]
+            if first.get('iva') is None and x.get('iva') is not None:
+                first['iva'] = x['iva']
             if not first.get('img') and x.get('img'):
                 first['img'], first['imgs'] = x['img'], x.get('imgs') or [x['img']]
             continue
         if x.get('km') is not None:
             twins.setdefault(sig, x)
+        if _exact_km(x):
+            cars.setdefault((x.get('price'), x.get('km')), []).append(x)
         job['results'].append(x)
 
 
