@@ -1,18 +1,18 @@
 {
- "version": "2.7",
- "note": "Olanda, Austria e Lussemburgo; tasti Interessante e Nascondi; annunci nuovi",
+ "version": "2.8",
+ "note": "marca e modello da scegliere dall'elenco",
  "files": {
   "server.py": {
-   "sha256": "7ef75c911f04ab2da1863a3880514c545c36a8a62d994b46fecd9035a0a83cd6",
-   "size": 224521
+   "sha256": "9eb897fc57ea809f553736b0e212a4085669120b0e03a07d83629e0756daac26",
+   "size": 225313
   },
   "index.html": {
-   "sha256": "9161880576481946621aa02c17907c3707e939bccc9c765279aa291e834ab7c3",
-   "size": 141143
+   "sha256": "3bea067975f799191e03c950c75162668b01628eabc992ce9b3b272161871422",
+   "size": 152388
   },
   "LEGGIMI.txt": {
-   "sha256": "de09670062c7c3788d10eced73873da18aad43be270907dd079894b4510f3e87",
-   "size": 13565
+   "sha256": "635764f1041ebfa672a37b4d50c60b087fb4ef4c32ae69e90e34f878bea35a79",
+   "size": 13934
   },
   "cacert.pem": {
    "sha256": "d87887200c9a705dccc937b9b83b5e67e47024c4a4b7f9dd15700c72e0f55453",

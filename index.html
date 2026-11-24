@@ -107,6 +107,9 @@ td a{color:var(--accent);font-weight:500}
 .understood span{font-weight:400;color:var(--muted)}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .sub .flag{color:var(--warn);font-weight:500}
+.pick{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pick label{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
+.pick select{font:inherit;font-size:15px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);min-width:180px;max-width:100%}
 .mkr{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 button.mk{padding:2px 8px;font-size:12px;font-weight:500;line-height:1.35;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:6px}
 button.mk:hover{border-color:var(--accent)}
@@ -151,6 +154,11 @@ ul.plain{margin:0;padding-left:18px}
       <input id="q" type="text" autocomplete="off" aria-label="Descrivi il veicolo" placeholder="Es. BMW 320d touring dal 2019 max 25000 euro sotto 120000 km automatico">
       <button type="submit" id="go">Cerca</button>
     </form>
+    <div class="pick" id="pick">
+      <span class="hint">Oppure scegli dall'elenco:</span>
+      <label>Marca<select id="p_make"></select></label>
+      <label>Modello<select id="p_model" disabled><option value="">Prima scegli la marca</option></select></label>
+    </div>
     <p class="understood" id="understood" aria-live="polite"></p>
     <p class="hint">Scrivi l'auto come la diresti a voce e premi Cerca. Capisce marca e modello, anno ("dal 2019", "2019-2021"), prezzo, km, cambio, alimentazione, e anche: potenza ("245 cv", "almeno 150 cv"), "4x4", colore, "iva esposta", "solo concessionari" o "no privati", "sw", dotazioni ("tetto panoramico", "pelle", "navi", "gancio traino"), "unico proprietario", "7 posti", "solo germania", parole da escludere ("no tcr"). Le auto incidentate sono escluse, a meno che tu non scriva "anche incidentate".</p>
     <details id="filterBox">
@@ -300,7 +308,7 @@ var CV = (function(){
     ['oscurati','vetri oscurati','(?:vetri\\s+(?:oscurati|scuri|privacy))',54],
     ['ventilati','sedili ventilati','(?:sedili\\s+ventilati)',154],
     ['sensori','sensori di parcheggio','(?:sensori\\s+(?:di\\s+)?parcheggio|pdc)',0],
-    ['cockpit','strumentazione digitale','(?:virtual\\s+cockpit|cockpit\\s+digitale|digital\\s+cockpit)',224]];
+    ['cockpit','strumentazione digitale','(?:virtual\\s+cockpit|cockpit\\s+digitale|digital\\s+cockpit|strumentazione\\s+digitale|quadro\\s+digitale)',224]];
   var EQUIP_NAME = {}, EQUIP_AS24 = {};
   EQUIP.forEach(function(e){ EQUIP_NAME[e[0]] = e[1]; if(e[3]) EQUIP_AS24[e[0]] = e[3]; });
   var COUNTRY_WORDS = [['DE','(?:germania|tedesc[aohe]+|deutschland)'],['BE','(?:belgio|belg[aihe]+)'],['FR','(?:francia|frances[ei])'],['ES','(?:spagna|spagnol[aoie])'],
@@ -998,7 +1006,7 @@ var CV = (function(){
   // L'asterisco vale per qualche parola in mezzo ("Q8 Sportback 55 e-tron").
   var SIBLINGS = {
     'Volkswagen':{'golf':['Golf Plus','Golf Sportsvan','Cross Golf'], 'tiguan':['Tiguan Allspace'], 'passat':['Passat CC'], 'california':['Grand California']},
-    'Citroen':{'c3':['C3 Aircross','C3 Picasso'], 'c4':['C4 Picasso','C4 Cactus','C4 Aircross','C4 SpaceTourer','C4 X'], 'c5':['C5 Aircross','C5 X']},
+    'Citroen':{'c3':['C3 Aircross','C3 Picasso'], 'c4':['C4 Picasso','C4 Cactus','C4 Aircross','C4 SpaceTourer','C4 X'], 'c5':['C5 Aircross','C5 X'], 'spacetourer':['C4 SpaceTourer']},
     'Toyota':{'yaris':['Yaris Cross'], 'corolla':['Corolla Cross','Corolla Verso'], 'avensis':['Avensis Verso'], 'proace':['Proace City']},
     'Renault':{'scenic':['Grand Scenic'], 'modus':['Grand Modus'], 'kangoo':['Grand Kangoo']},
     'Fiat':{'panda':['Grande Panda']},
@@ -1013,7 +1021,8 @@ var CV = (function(){
     'Land Rover':{'range rover':['Range Rover Sport','Evoque','Velar'], 'discovery':['Discovery Sport']},
     'Jeep':{'cherokee':['Grand Cherokee']},
     'Suzuki':{'vitara':['Grand Vitara']},
-    'Mitsubishi':{'eclipse':['Eclipse Cross']}
+    'Mitsubishi':{'eclipse':['Eclipse Cross']},
+    'BYD':{'seal':['Seal U']}
   };
   // modelli da tenere fuori per questa richiesta; nessuno se la richiesta nomina proprio uno di loro ("c3 aircross")
   function siblingsFor(c){
@@ -1038,6 +1047,117 @@ var CV = (function(){
     siblingsFor(c).forEach(function(ph){ var nm = ph.replace(' *',''); if(seen.indexOf(nm)<0 && !seen.some(function(o){ return o.toLowerCase().indexOf(nm.toLowerCase())>=0; })) seen.push(nm); });
     return seen;
   }
+  // ---- modelli gia' pronti, da scegliere dall'elenco: nomi come li scrive chi cerca; ognuno e' provato (check_models.js): viene capito senza errori
+  var MODELS_RAW = {
+    'Abarth':'500|595|695|124 Spider|Punto|600e',
+    'Alfa Romeo':'MiTo|Giulietta|Giulia|Stelvio|Tonale|Junior|147|156|159|166|GT|Brera|Spider|4C',
+    'Alpine':'A110|A290',
+    'Aston Martin':'Vantage|DB9|DB11|DBX|Rapide',
+    'Audi':'A1|A2|A3|A4|A4 Allroad|A5|A6|A6 Allroad|A6 e-tron|A7|A8|Q2|Q3|Q4 e-tron|Q5|Q6 e-tron|Q7|Q8|Q8 e-tron|e-tron|e-tron GT|TT|R8|S3|S4|S5|S6|SQ5|SQ7|SQ8|RS3|RS4|RS5|RS6|RS7|RS Q3|RS Q8',
+    'Bentley':'Continental|Bentayga|Flying Spur',
+    'BMW':'Serie 1|Serie 2|Serie 3|Serie 4|Serie 5|Serie 6|Serie 7|Serie 8|X1|X2|X3|X4|X5|X6|X7|XM|Z3|Z4|i3|i4|i5|i7|i8|iX|iX1|iX2|iX3|M2|M3|M4|M5|M8',
+    'BYD':'Atto 3|Dolphin|Seal|Seal U|Han|Tang',
+    'Chevrolet':'Spark|Aveo|Cruze|Captiva|Orlando|Trax|Camaro|Corvette',
+    'Chrysler':'Voyager|300C|PT Cruiser',
+    'Citroen':'C1|C2|C3|C3 Aircross|C3 Picasso|C4|C4 X|C4 Cactus|C4 Picasso|Grand C4 Picasso|C4 SpaceTourer|Grand C4 SpaceTourer|C4 Aircross|C5|C5 Aircross|C5 X|C-Elysee|Berlingo|SpaceTourer|Jumpy|Jumper|Nemo|DS3|DS4|DS5|Ami',
+    'Cupra':'Formentor|Leon|Ateca|Born|Tavascan|Terramar',
+    'Dacia':'Sandero|Duster|Logan|Jogger|Spring|Lodgy|Dokker|Bigster',
+    'Dodge':'Challenger|Charger|Durango|Journey|RAM|Nitro|Caliber',
+    'DS Automobiles':'DS 3|DS 3 Crossback|DS 4|DS 5|DS 7|DS 7 Crossback|DS 9',
+    'Ferrari':'458|488|California|Portofino|Roma|F8|812|296|SF90|Purosangue|F430|GTC4Lusso',
+    'Fiat':'500|500C|500X|500L|500e|600|600e|Panda|Grande Panda|Punto|Grande Punto|Punto Evo|Tipo|Bravo|Doblo|Qubo|Fiorino|Ducato|Talento|Scudo|Freemont|124 Spider|Fullback|Sedici|Idea|Topolino',
+    'Ford':'Fiesta|Focus|Puma|Kuga|EcoSport|Mondeo|S-Max|C-Max|Grand C-Max|B-Max|Galaxy|Ka|Mustang|Mustang Mach-E|Explorer|Edge|Ranger|Transit|Transit Custom|Transit Connect|Transit Courier|Tourneo Custom|Tourneo Connect|Tourneo Courier|Fusion',
+    'Honda':'Civic|Jazz|CR-V|HR-V|ZR-V|Accord|Insight|CR-Z|S2000',
+    'Hyundai':'i10|i20|i30|i40|Kona|Tucson|Santa Fe|Bayon|ix20|ix35|Ioniq|Ioniq 5|Ioniq 6|Nexo|Staria|Getz|Veloster',
+    'Infiniti':'Q30|Q50|Q60|QX30|QX50|QX70',
+    'Isuzu':'D-Max',
+    'Jaguar':'XE|XF|XJ|F-Pace|E-Pace|I-Pace|F-Type|XK',
+    'Jeep':'Renegade|Compass|Avenger|Cherokee|Grand Cherokee|Wrangler|Gladiator|Commander',
+    'Kia':'Picanto|Rio|Ceed|XCeed|ProCeed|Stonic|Niro|Sportage|Sorento|Soul|Venga|Carens|Optima|Stinger|EV3|EV6|EV9',
+    'Lamborghini':'Huracan|Urus|Aventador|Gallardo',
+    'Lancia':'Ypsilon|Delta|Musa',
+    'Land Rover':'Range Rover|Range Rover Sport|Range Rover Evoque|Range Rover Velar|Discovery|Discovery Sport|Defender|Freelander',
+    'Lexus':'CT|IS|ES|GS|LS|UX|NX|RX|LBX|RZ|LC|RC',
+    'Lotus':'Elise|Exige|Evora|Emira|Eletre',
+    'Maserati':'Ghibli|Levante|Quattroporte|Grecale|GranTurismo|GranCabrio|MC20',
+    'Mazda':'2|3|5|6|CX-3|CX-30|CX-5|CX-60|CX-80|CX-7|MX-5|MX-30|RX-8',
+    'McLaren':'540C|570S|600LT|720S|Artura|GT',
+    'Mercedes-Benz':'Classe A|Classe B|Classe C|Classe E|Classe S|Classe G|Classe V|Classe X|Classe T|CLA|CLS|CLE|CLK|GLA|GLB|GLC|GLE|GLS|GLK|ML|EQA|EQB|EQC|EQE|EQS|EQV|SL|SLC|SLK|AMG GT|Citan|Vito|Viano|Sprinter|Marco Polo',
+    'MG':'MG3|MG4|MG5|ZS|HS|EHS|Marvel R|Cyberster',
+    'MINI':'Cooper|One|Countryman|Clubman|Paceman|Aceman|John Cooper Works',
+    'Mitsubishi':'Space Star|ASX|Eclipse Cross|Outlander|L200|Colt|Pajero|Lancer',
+    'Nissan':'Micra|Juke|Qashqai|X-Trail|Leaf|Ariya|Note|Pulsar|Navara|NV200|Townstar|Primastar|370Z|GT-R|Murano|Pixo',
+    'Opel':'Corsa|Astra|Mokka|Crossland|Grandland|Insignia|Zafira|Zafira Life|Meriva|Adam|Karl|Agila|Antara|Cascada|Combo|Vivaro|Movano|Frontera',
+    'Peugeot':'107|108|206|207|208|2008|307|308|3008|407|408|508|5008|607|807|RCZ|Partner|Rifter|Expert|Traveller|Boxer|Bipper',
+    'Polestar':'2|3|4',
+    'Porsche':'911|718|Boxster|Cayman|Cayenne|Macan|Panamera|Taycan',
+    'Renault':'Clio|Captur|Megane|Scenic|Grand Scenic|Kadjar|Austral|Arkana|Koleos|Twingo|Zoe|Talisman|Espace|Kangoo|Trafic|Master|Symbioz|Rafale|5|Laguna|Modus|Fluence|Wind',
+    'Rolls-Royce':'Ghost|Wraith|Dawn|Phantom|Cullinan',
+    'Saab':'9-3|9-5',
+    'Seat':'Ibiza|Leon|Arona|Ateca|Tarraco|Alhambra|Mii|Toledo|Altea|Exeo',
+    'Skoda':'Fabia|Octavia|Superb|Scala|Kamiq|Karoq|Kodiaq|Enyaq|Elroq|Citigo|Rapid|Yeti|Roomster',
+    'smart':'fortwo|forfour|roadster',
+    'SsangYong':'Tivoli|Korando|Rexton|Musso|Torres',
+    'Subaru':'Impreza|Forester|Outback|XV|Crosstrek|Levorg|BRZ|WRX|Legacy|Solterra',
+    'Suzuki':'Swift|Ignis|Vitara|Grand Vitara|S-Cross|SX4|Jimny|Baleno|Celerio|Alto|Splash|Across|Swace',
+    'Tesla':'Model 3|Model Y|Model S|Model X',
+    'Toyota':'Aygo|Aygo X|Yaris|Yaris Cross|Corolla|Corolla Cross|C-HR|RAV4|Highlander|Prius|Auris|Avensis|Verso|Camry|bZ4X|Land Cruiser|Hilux|Proace|Proace City|Supra|GR86|GT86|iQ',
+    'Volkswagen':'up!|Polo|Golf|Golf Plus|Golf Sportsvan|T-Cross|T-Roc|Taigo|Tiguan|Tiguan Allspace|Touran|Touareg|Passat|Passat CC|Arteon|Sharan|Scirocco|Beetle|Jetta|Eos|Fox|Caddy|Multivan|Transporter|Caravelle|California|Crafter|Amarok|ID.3|ID.4|ID.5|ID.7|ID. Buzz',
+    'Volvo':'XC40|XC60|XC90|XC70|V40|V50|V60|V70|V90|S40|S60|S80|S90|C30|C40|C70|EX30|EX40|EX90'
+  };
+  var modelCache = {};
+  // modelli di una marca: {l: nome da mostrare, w: parole come le capisce il programma}
+  function modelsFor(name){
+    var mk = findMake(name);
+    if(!mk || !MODELS_RAW[mk.n]) return [];
+    if(!modelCache[mk.n]) modelCache[mk.n] = MODELS_RAW[mk.n].split('|').map(function(l){ return {l:l, w:parseQuery(mk.n+' '+l).words}; });
+    return modelCache[mk.n];
+  }
+  // il modello dell'elenco che corrisponde alla richiesta: il nome piu' lungo che apre le parole, oppure la famiglia ("320d" = Serie 3, "c 220" = Classe C)
+  function modelOf(c){
+    if(!c.make || !(c.words||[]).length) return '';
+    var list = modelsFor(c.make.n), best = '', bl = 0;
+    list.forEach(function(m){ if(m.w.length>bl && m.w.length<=c.words.length && m.w.every(function(x,i){ return c.words[i]===x; })){ best = m.l; bl = m.w.length; } });
+    if(best) return best;
+    var fam = familySlug(c, 'classe').replace('-', ' ');
+    for(var i=0;i<list.length;i++) if(fam && list[i].l.toLowerCase()===fam) return list[i].l;
+    return '';
+  }
+  // la richiesta riscritta in una riga, con le parole che il programma capisce di sicuro (parseQuery(critToText(c)) ridà gli stessi filtri)
+  var CC_WORD = {DE:'germania', BE:'belgio', FR:'francia', ES:'spagna', NL:'olanda', AT:'austria', LU:'lussemburgo'};
+  function critToText(c){
+    var a = [];
+    if(c.make) a.push(c.make.n);
+    (c.words||[]).forEach(function(w){ a.push(wordOut(w)); });
+    if(c.yearMin && c.yearMax) a.push(c.yearMin===c.yearMax ? 'anno '+c.yearMin : c.yearMin+'-'+c.yearMax);
+    else if(c.yearMin) a.push('dal '+c.yearMin);
+    else if(c.yearMax) a.push('fino al '+c.yearMax);
+    if(c.priceMin && c.priceMax) a.push('da '+c.priceMin+' a '+c.priceMax+' euro');
+    else if(c.priceMax) a.push('max '+c.priceMax+' euro');
+    else if(c.priceMin) a.push('da '+c.priceMin+' euro');
+    if(c.kmMin && c.kmMax) a.push('da '+c.kmMin+' a '+c.kmMax+' km');
+    else if(c.kmMax) a.push('sotto '+c.kmMax+' km');
+    else if(c.kmMin) a.push('da '+c.kmMin+' km');
+    if(c.powerAbout) a.push(c.powerAbout+' cv');
+    else if(c.powerMin && c.powerMax) a.push('da '+c.powerMin+' a '+c.powerMax+' cv');
+    else if(c.powerMin) a.push('almeno '+c.powerMin+' cv');
+    else if(c.powerMax) a.push('max '+c.powerMax+' cv');
+    if(c.fuel) a.push({D:'diesel', B:'benzina', H:'ibrida', E:'elettrica', L:'gpl', C:'metano'}[c.fuel]);
+    if(c.gear) a.push(c.gear==='A' ? 'automatico' : 'manuale');
+    if(c.body) a.push({SW:'sw', CA:'cabrio', BE:'berlina'}[c.body]);
+    if(c.drive==='4') a.push('4x4');
+    if(c.color) a.push(c.color);
+    (c.eq||[]).forEach(function(k){ if(EQUIP_NAME[k]) a.push(EQUIP_NAME[k]); });
+    if(c.seller) a.push(c.seller==='D' ? 'solo concessionari' : 'solo privati');
+    if(c.vat) a.push('iva esposta');
+    if(c.owners1) a.push('unico proprietario');
+    if(c.seatsMin) a.push(c.seatsMin+' posti');
+    if(c.doors) a.push(c.doors+' porte');
+    if(c.damaged==='yes') a.push('anche incidentate'); else if(c.damaged==='only') a.push('incidentata');
+    (c.excl||[]).forEach(function(w){ a.push('no '+w); });
+    if(c.countries && c.countries.length) a.push('solo '+c.countries.map(function(k){ return CC_WORD[k]; }).filter(Boolean).join(' '));
+    return a.filter(Boolean).join(' ');
+  }
   var DISCOVER = {DE:{gl:'de',hl:'de',w:'gebraucht kaufen'}, FR:{gl:'fr',hl:'fr',w:'occasion'}, ES:{gl:'es',hl:'es',w:'segunda mano'}, BE:{gl:'be',hl:'fr',w:'occasion Belgique'},
     NL:{gl:'nl',hl:'nl',w:'occasion kopen'}, AT:{gl:'at',hl:'de',w:'gebraucht kaufen Österreich'}, LU:{gl:'lu',hl:'fr',w:'occasion Luxembourg'}};
   function discoverQueries(c, countries){
@@ -1047,7 +1167,7 @@ var CV = (function(){
       return {country:k, url:'https://www.google.com/search?q='+enc(q).replace(/%20/g,'+')+'&gl='+d.gl+'&hl='+d.hl+'&brd_json=1'};
     });
   }
-  return {MAKES:MAKES, SITES:SITES, COUNTRIES:COUNTRIES, METHOD:METHOD, parseQuery:parseQuery, siteLinks:siteLinks, findMake:findMake, parts:parts, describe:describe, siblingsFor:siblingsFor, siblingNames:siblingNames, discoverQueries:discoverQueries, slug:slug, kwQuery:kwQuery, familySlug:familySlug, EQUIP_NAME:EQUIP_NAME, COLORS:COLORS.map(function(c){ return c[0]; })};
+  return {MAKES:MAKES, SITES:SITES, COUNTRIES:COUNTRIES, METHOD:METHOD, parseQuery:parseQuery, siteLinks:siteLinks, findMake:findMake, parts:parts, describe:describe, MODELS_RAW:MODELS_RAW, modelsFor:modelsFor, modelOf:modelOf, critToText:critToText, siblingsFor:siblingsFor, siblingNames:siblingNames, discoverQueries:discoverQueries, slug:slug, kwQuery:kwQuery, familySlug:familySlug, EQUIP_NAME:EQUIP_NAME, COLORS:COLORS.map(function(c){ return c[0]; })};
 })();
 if(typeof module!=='undefined') module.exports = CV;
 </script>
@@ -1093,7 +1213,7 @@ if(typeof module!=='undefined') module.exports = CV;
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   function store(k,v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)||'null'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
-  var PAGE_V = '2.7';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
+  var PAGE_V = '2.8';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
   var DOWN_MSG = 'Il programma non risponde. Se la finestra nera è chiusa, fai doppio clic su Avvia.bat (su Mac: avvia.command): si apre una scheda nuova, usa quella.';
   var OLD_MSG = 'Questa scheda sta parlando con una versione vecchia del programma rimasta aperta. Chiudi tutte le finestre nere, poi fai doppio clic su Avvia.bat nella cartella nuova (Cercaveicoli-'+PAGE_V+').';
   function ss(k, v){ try{ if(v===undefined) return sessionStorage.getItem(k); if(v===null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); }catch(e){} return null; }
@@ -1216,6 +1336,38 @@ if(typeof module!=='undefined') module.exports = CV;
       powerMin:pmin, powerMax:pmax, powerAbout:(pmin===crit.powerMin && pmax===crit.powerMax) ? crit.powerAbout : null,
       fuel:$('f_fuel').value, gear:$('f_gear').value, body:$('f_body').value, seller:$('f_seller').value, vat:$('f_vat').value==='1',
       drive:$('f_drive').value, color:$('f_color').value, damaged:$('f_dmg').value||'no'});
+  }
+  // ---- elenchi Marca e Modello: scrivono loro la riga di ricerca, e mostrano che cosa e' stato capito quando si scrive a mano
+  var pickMake = null;
+  function fillPicker(){
+    $('p_make').innerHTML = '<option value="">Tutte le marche</option>' + CV.MAKES.map(function(m){ return '<option>'+esc(m.n)+'</option>'; }).join('');
+  }
+  function syncPicker(){
+    var mk = crit.make ? crit.make.n : '', sel = $('p_model');
+    $('p_make').value = mk;
+    if(mk !== pickMake){
+      pickMake = mk;
+      var list = mk ? CV.modelsFor(mk) : [];
+      sel.innerHTML = '<option value="">'+(mk ? 'Tutti i modelli' : 'Prima scegli la marca')+'</option>' + list.map(function(m){ return '<option>'+esc(m.l)+'</option>'; }).join('');
+      sel.disabled = !mk;
+    }
+    var old = sel.querySelector('option[data-other]'); if(old) old.remove();
+    var md = CV.modelOf(crit);
+    if(!md && mk && crit.words.length){  // parole che non sono un modello dell'elenco: si vedono lo stesso, per non far credere "tutti i modelli"
+      var o = document.createElement('option'); o.value = '__altro'; o.setAttribute('data-other','1'); o.textContent = 'Scritto a mano: '+crit.words.join(' ');
+      sel.insertBefore(o, sel.children[1] || null); md = '__altro';
+    }
+    sel.value = md;
+  }
+  function pickChanged(which){
+    syncQuery();
+    var mk = CV.findMake($('p_make').value), md = which==='model' ? $('p_model').value : '';
+    if(md==='__altro') return;
+    var words = [];
+    if(mk && md){ CV.modelsFor(mk.n).forEach(function(m){ if(m.l===md) words = m.w.slice(); }); }
+    var next = Object.assign({}, crit, {make:mk, makeInferred:false, words:words});
+    $('q').value = CV.critToText(next);
+    parseAndRender();
   }
   function allSites(){
     return CV.SITES.concat(custom.map(function(s){
@@ -1651,10 +1803,12 @@ if(typeof module!=='undefined') module.exports = CV;
     if(crit.countries && crit.countries.length){  // "solo germania": i paesi seguono quello che e' scritto
       NAT.forEach(function(k){ active[k] = crit.countries.indexOf(k)>=0; }); autoCountries = true; renderCountries();
     } else if(autoCountries){ NAT.forEach(function(k){ active[k] = true; }); autoCountries = false; renderCountries(); }
-    critToFields(); renderLinks();
+    critToFields(); syncPicker(); renderLinks();
   }
   function syncQuery(){ if($('q').value !== lastQ) parseAndRender(); }
-  fillMakes(); renderCountries();
+  fillMakes(); fillPicker(); renderCountries();
+  $('p_make').addEventListener('change', function(){ pickChanged('make'); });
+  $('p_model').addEventListener('change', function(){ pickChanged('model'); });
   custom = store('cv_custom') || [];
   if(LOCAL){
     $('mode').textContent = 'Programma, versione '+(LOCAL.version||'precedente'); $('mode').classList.add('on');
@@ -1665,7 +1819,7 @@ if(typeof module!=='undefined') module.exports = CV;
   $('searchForm').addEventListener('submit', function(e){ e.preventDefault(); if(LOCAL) startScan(); else { parseAndRender(); $('linksBox').open = true; } });
   $('goFilters').addEventListener('click', function(){ if(LOCAL) startScan(); });
   $('q').addEventListener('input', function(){ clearTimeout(qTimer); qTimer = setTimeout(parseAndRender, 350); });  // i filtri seguono quello che scrivi
-  $('filters').addEventListener('input', function(){ fieldsToCrit(); renderLinks(); });
+  $('filters').addEventListener('input', function(){ fieldsToCrit(); syncPicker(); renderLinks(); });
   $('countries').addEventListener('change', function(e){ var c = e.target.getAttribute('data-c'); if(c){ active[c] = e.target.checked; autoCountries = false; renderLinks(); } });
   $('customForm').addEventListener('submit', function(e){
     e.preventDefault();

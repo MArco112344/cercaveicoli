@@ -68,9 +68,9 @@ BOOT = secrets.token_hex(6)  # cambia a ogni avvio: la pagina se ne accorge e si
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 MAX_PAGES_PER_SCAN = 60
-VERSION = '2.7'
+VERSION = '2.8'
 # Lettura diretta: il programma si presenta con il proprio nome, senza fingersi un browser
-UA = "CercaveicoliImport/2.7 (ricerca auto avviata dall'utente; poche pagine per sito)"
+UA = "CercaveicoliImport/2.8 (ricerca auto avviata dall'utente; poche pagine per sito)"
 ROBOT_NAME = 'cercaveicoliimport'
 DIRECT_GAP = float(os.environ.get('CV_DIRECT_GAP') or 1.2)  # secondi tra due letture dello stesso sito
 TEST_ORIGIN = os.environ.get('CV_TEST_ORIGIN', '').rstrip('/')  # solo per le prove
@@ -1176,7 +1176,7 @@ AMG_PACK = r'(?:paket|pakket|styling|sportpaket|optik|look|exterieur|interieur)'
 # modelli in cui il numero fa parte del nome e non e' la generazione: "ioniq 5" non e' una Ioniq
 NUMBER_NAMED = {'ioniq', 'atto'}
 # sigle che insieme a una cifra fanno il nome del modello: ID.3, RS 3, EV6, MX-5
-NAME_STEMS = {'id', 'rs', 'ev', 'mx', 'cx', 'sq', 'xc', 'eq', 'bz'}
+NAME_STEMS = {'id', 'rs', 'ev', 'mx', 'cx', 'sq', 'xc', 'eq', 'bz', 'ds'}
 # dopo "golf 5" non deve seguire "porte", "Gang", "Jahre"...: allora il numero non e' la generazione
 GEN_AFTER = (r'(?![a-z0-9])(?![.,])(?!\s*-?\s*(?:tur|tuer|trg|port|puert|door|deur|sitz|post|plac|plaz|gang|speed|vitess|march|hand|jahr|year|ans|anos|anni|monat|mesi|mois'
              r'|zon|fach|zyl|cil|cyl|schl|key|kw|ps|cv|ch|x|p|v|er))')
@@ -1239,7 +1239,7 @@ def _has_run(ck, parts):
     return False
 
 
-def words_match(title, make, words, extra=''):
+def words_match(title, make, words, extra='', aliases=()):
     """True se l'annuncio contiene il modello e le parole richieste, come parole intere.
     `title` e' il titolo dell'annuncio; `extra` altro testo dove le parole possono comparire (indirizzo, scheda).
     Se il titolo dichiara un'altra generazione o un'altra cilindrata rispetto a quelle richieste, non corrisponde."""
@@ -1249,7 +1249,10 @@ def words_match(title, make, words, extra=''):
     tokens = set(toks)
     comp = ''.join(toks)
     mk = _plain(make or '')
-    mkpat = r'[\s-]?'.join(re.escape(x) for x in re.findall(r'[a-z0-9]+', mk))
+    # la marca come puo' stare scritta nel titolo: il nome e le sue sigle ("volkswagen", "vw"; "ds automobiles", "ds")
+    names = [x for x in [mk] + [_plain(a) for a in (aliases or ())] if re.search(r'[a-z0-9]', x)]
+    mkpat = '|'.join(sorted(set(r'[\s-]?'.join(re.escape(x) for x in re.findall(r'[a-z0-9]+', nm)) for nm in names), key=len, reverse=True))
+    mkpat = '(?:' + mkpat + ')' if mkpat else ''
     w = [x for x in _norm_compounds(' '.join(_plain(v) for v in (words or []))).split() if re.search(r'[a-z0-9]', x)]
     i, first, model, model0 = 0, True, '', ''
     while i < len(w):
@@ -1270,7 +1273,7 @@ def words_match(title, make, words, extra=''):
                 return False
             i, first, model = i + 2, False, ''
             continue
-        if not first and (re.fullmatch(r'\d', cur) or re.fullmatch(r'\d[.,]\d', cur) or cur in ROMAN_N):
+        if not first and (re.fullmatch(r'\d', cur) or re.fullmatch(r'\d[.,]\d', cur) or (cur in ROMAN_N and cur != 'x')):
             if re.fullmatch(r'\d[.,]\d', cur):  # cilindrata
                 seen = set(a + '.' + b for a, b in re.findall(r'(?<![\d.,])([0-6])[.,](\d)(?![.,]?\d)', tplain))
                 if seen and cur.replace(',', '.') not in seen:
@@ -1304,9 +1307,13 @@ def words_match(title, make, words, extra=''):
             if first and re.fullmatch(r'\d', n2) and (re.fullmatch(r'[a-z]', ck) or ck in NAME_STEMS):
                 return False  # "id 3" non e' una ID.4, "rs 3" non e' una RS 5: qui il numero fa parte del nome
         joined = bool(mkpat) and re.search(r'(?<![a-z0-9])' + mkpat + r'[\s-]?' + re.escape(ck) + r'(?![a-z0-9])', plain) is not None  # "Mazda3"
-        if ck.isdigit():
-            if len(ck) == 1:  # "mazda 3" non e' "CX-3"
-                hit = joined or re.search(r'(?<![a-z0-9-])' + ck + r'(?![a-z0-9])', tplain or plain) is not None
+        if re.fullmatch(r'\d[-/]\d', cur):  # Saab 9-3, 9-5
+            hit = re.search(r'(?<![a-z0-9.,])' + cur[0] + r'[\s/-]?' + cur[2] + r'(?![a-z0-9])(?![.,]\d)', plain) is not None
+        elif ck.isdigit():
+            if len(ck) == 1:  # "mazda 3" non e' "CX-3", ne' una Mazda 6 "2.0", ne' una "5 porte"
+                hit = joined or re.match(r'\s*' + ck + GEN_AFTER, tplain or plain) is not None
+                if not hit and 'renault' in mk:  # "Renault R5"
+                    hit = re.search(r'(?<![a-z0-9])r[\s-]?' + ck + r'(?![a-z0-9])', plain) is not None
             else:  # "500" non e' "500X"; "320" vale per 320d, 320i, 330e; "220" per C220d
                 hit = joined or any(t == ck or re.fullmatch(r'(?:[a-z]{1,3})?' + ck + r'(?:[a-z]{1,2})?', t) and (t[:1].isalpha() or re.fullmatch(ck + r'(?:[diecs]|cc|sw)', t)) for t in toks)
         elif len(ck) == 1:
@@ -2606,8 +2613,8 @@ def judge(item, crit, trust=()):
         return 'scartato', ['altra marca']
     missing = []
     if words:
-        if not words_match(title, crit.get('make'), words, slug):
-            if card and card != title and words_match(title, crit.get('make'), words, slug + ' ' + card):
+        if not words_match(title, crit.get('make'), words, slug, crit.get('makeAliases')):
+            if card and card != title and words_match(title, crit.get('make'), words, slug + ' ' + card, crit.get('makeAliases')):
                 missing.append('modello nel titolo')  # citato solo nel testo della scheda: non basta per darlo come verificato
             else:
                 return 'scartato', ['modello o parole chiave non presenti']

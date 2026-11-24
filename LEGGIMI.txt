@@ -69,6 +69,12 @@ COME SI USA: UN SOLO TASTO
   e' stata interpretata. Il programma legge i siti e mette nella tabella solo
   gli annunci che corrispondono, controllati uno per uno.
 
+  Marca e modello si possono anche scegliere dai due elenchi sotto la riga
+  ("Marca" e "Modello", per esempio Mercedes-Benz e poi Classe A): la riga
+  la scrive il programma, senza possibilita' di capire male, e quello che
+  avevi gia' scritto (anno, prezzo, km...) resta. Quando scrivi a mano, i due
+  elenchi mostrano quale marca e quale modello sono stati capiti.
+
   Che cosa capisce:
     - marca e modello, anche con piccoli errori di battitura
     - anno: "2019" (solo quell'anno), "dal 2019", "2019-2021"
