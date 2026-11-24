@@ -1,5 +1,6 @@
 CERCAVEICOLI IMPORT
-Ricerca di auto usate in Germania, Belgio, Francia e Spagna.
+Ricerca di auto usate in Germania, Belgio, Francia, Spagna, Olanda, Austria
+e Lussemburgo.
 Gratuito: non serve nessun account.
 
 COME SI AVVIA
@@ -84,7 +85,8 @@ COME SI USA: UN SOLO TASTO
     - venditore: "solo concessionari", "no privati", "solo privati"
     - "iva esposta": solo annunci con IVA detraibile
     - "unico proprietario", "7 posti", "5 porte"
-    - paesi: "solo germania", "francia e belgio"
+    - paesi: "solo germania", "francia e belgio", "olanda", "austria",
+      "lussemburgo"
     - parole da escludere: "no tcr", "senza clubsport"
     - le auto incidentate o con danni dichiarati sono escluse; per vederle
       scrivi "anche incidentate" (oppure "incidentata" per avere solo quelle)
@@ -121,8 +123,35 @@ LA STESSA AUTO SU PIU' SITI
   lo stesso prezzo, lo stesso anno e gli stessi chilometri precisi (per
   esempio 87.432, non 90.000) anche con un titolo scritto in un altro modo.
 
+ANNUNCI INTERESSANTI, NASCOSTI E NUOVI
+  Sotto il nome di ogni annuncio ci sono due tasti:
+    - "Interessante": l'annuncio resta segnato con la stella e finisce
+      nell'elenco "Interessanti salvati", sotto la tabella, che ritrovi anche
+      nelle ricerche successive e dopo aver chiuso il programma.
+    - "Nascondi": l'annuncio sparisce dalla tabella e non torna nelle
+      ricerche successive, nemmeno se la stessa auto esce su un altro sito.
+      Per ripensarci: spunta "Mostra i nascosti" sopra la tabella e premi
+      "Ripristina", oppure "Ripristina tutti i nascosti" nell'elenco sotto.
+  Il programma ricorda gli annunci gia' usciti nelle ricerche di prima:
+  quelli mai visti hanno la scritta "nuovo", e con la spunta "Solo i nuovi"
+  restano in tabella soltanto quelli.
+  Questi segni restano su questo computer (cartella dei dati, file
+  annunci.json): non vanno su internet e non si perdono con gli
+  aggiornamenti. Il file per Excel non contiene gli annunci nascosti.
+
 I SITI
-  Il programma legge da solo 47 siti (erano 30). Sono nuovi, tra gli altri:
+  Paesi: Germania, Belgio, Francia, Spagna e, dalla versione 2.7, Olanda,
+  Austria e Lussemburgo: AutoScout24 dei tre paesi, Marktplaats (Olanda),
+  willhaben (Austria), Luxauto (Lussemburgo), AutoUncle per Olanda e Austria.
+  Indirizzi e schede provati aprendo le pagine vere il 24/11/2026.
+  Su willhaben il programma legge la pagina del modello, 90 annunci per
+  pagina, senza mettere prezzo, anno e km nell'indirizzo: le regole del sito
+  vietano ai programmi le pagine filtrate. I filtri li applica il programma
+  dopo, annuncio per annuncio. Per i modelli molto diffusi vede quindi solo
+  una parte degli annunci (fino a 900).
+  AutoTrader.nl e Gebrauchtwagen.at non sono nell'elenco: pubblicano gli
+  stessi annunci di AutoScout24.
+  Il programma legge da solo 55 siti. Tra quelli aggiunti con la 2.4:
   Spoticar e Renew in Germania, Belgio, Francia e Spagna, L'argus, auto.de,
   Quoka, Cardoen, AutoTrends, Capcar, Elite Auto, BYmyCAR, Clicars e
   Crestanevada. Gli indirizzi di questi siti sono stati provati aprendo le

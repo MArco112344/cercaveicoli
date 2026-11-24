@@ -1,18 +1,18 @@
 {
- "version": "2.6",
- "note": "modelli riconosciuti con piu' precisione e stessa auto su piu' siti in una riga",
+ "version": "2.7",
+ "note": "Olanda, Austria e Lussemburgo; tasti Interessante e Nascondi; annunci nuovi",
  "files": {
   "server.py": {
-   "sha256": "23a7acfaafdea5a9e66d44ca2db5e590db4b4c763e929242f9183083e90faa0b",
-   "size": 215409
+   "sha256": "7ef75c911f04ab2da1863a3880514c545c36a8a62d994b46fecd9035a0a83cd6",
+   "size": 224521
   },
   "index.html": {
-   "sha256": "5d5f44f880e7ca8a80b60ac2250be333cd1b371ac8627c2aeb64290381ddefca",
-   "size": 131272
+   "sha256": "9161880576481946621aa02c17907c3707e939bccc9c765279aa291e834ab7c3",
+   "size": 141143
   },
   "LEGGIMI.txt": {
-   "sha256": "b0cdbf00d6eb67b1a3bba4271008b43be42cdb56cf59e094ab129b80b2dd7c3f",
-   "size": 11770
+   "sha256": "de09670062c7c3788d10eced73873da18aad43be270907dd079894b4510f3e87",
+   "size": 13565
   },
   "cacert.pem": {
    "sha256": "d87887200c9a705dccc937b9b83b5e67e47024c4a4b7f9dd15700c72e0f55453",

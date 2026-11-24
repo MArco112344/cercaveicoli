@@ -107,6 +107,15 @@ td a{color:var(--accent);font-weight:500}
 .understood span{font-weight:400;color:var(--muted)}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .sub .flag{color:var(--warn);font-weight:500}
+.mkr{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+button.mk{padding:2px 8px;font-size:12px;font-weight:500;line-height:1.35;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:6px}
+button.mk:hover{border-color:var(--accent)}
+button.mk.on{background:var(--warn-soft);border-color:var(--warn);color:var(--warn);font-weight:700}
+tr.hid td{opacity:.55}
+.newb{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);vertical-align:1px}
+.newb.off{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:500}
+#favBox{margin-top:12px}
+.favl li{margin:0 0 6px}
 textarea{font:inherit;width:100%;padding:10px;border:2px dashed var(--accent);border-radius:8px;background:var(--surface);color:var(--ink);resize:vertical}
 ol.plain{margin:0 0 8px;padding-left:20px}
 .msg{font-size:13.5px;padding:8px 10px;border-radius:6px;background:var(--accent-soft)}
@@ -131,7 +140,7 @@ ul.plain{margin:0;padding-left:18px}
 <div class="wrap">
   <header class="top">
     <h1>Cercaveicoli Import</h1>
-    <p class="sub">Auto usate in Germania, Belgio, Francia e Spagna</p>
+    <p class="sub">Auto usate in Germania, Belgio, Francia, Spagna, Olanda, Austria e Lussemburgo</p>
     <span class="mode" id="mode">Solo link</span>
   </header>
 
@@ -190,7 +199,7 @@ ul.plain{margin:0;padding-left:18px}
       <p class="hint">Incolla l'indirizzo della pagina di ricerca del sito e metti <code>{q}</code> dove vanno le parole cercate, per esempio <code>https://www.esempio.de/suche?text={q}</code>. Se scrivi solo il dominio (<code>esempio.de</code>), la ricerca passa da Google.</p>
       <form class="custom" id="customForm">
         <label>Nome<input id="c_name" type="text" required></label>
-        <label>Paese<select id="c_country"><option value="DE">Germania</option><option value="BE">Belgio</option><option value="FR">Francia</option><option value="ES">Spagna</option><option value="EU">Tutta Europa</option></select></label>
+        <label>Paese<select id="c_country"><option value="DE">Germania</option><option value="BE">Belgio</option><option value="FR">Francia</option><option value="ES">Spagna</option><option value="NL">Olanda</option><option value="AT">Austria</option><option value="LU">Lussemburgo</option><option value="EU">Tutta Europa</option></select></label>
         <label>Indirizzo o dominio<input id="c_url" type="text" required></label>
         <button type="submit">Aggiungi</button>
       </form>
@@ -294,7 +303,8 @@ var CV = (function(){
     ['cockpit','strumentazione digitale','(?:virtual\\s+cockpit|cockpit\\s+digitale|digital\\s+cockpit)',224]];
   var EQUIP_NAME = {}, EQUIP_AS24 = {};
   EQUIP.forEach(function(e){ EQUIP_NAME[e[0]] = e[1]; if(e[3]) EQUIP_AS24[e[0]] = e[3]; });
-  var COUNTRY_WORDS = [['DE','(?:germania|tedesc[aohe]+|deutschland)'],['BE','(?:belgio|belg[aihe]+)'],['FR','(?:francia|frances[ei])'],['ES','(?:spagna|spagnol[aoie])']];
+  var COUNTRY_WORDS = [['DE','(?:germania|tedesc[aohe]+|deutschland)'],['BE','(?:belgio|belg[aihe]+)'],['FR','(?:francia|frances[ei])'],['ES','(?:spagna|spagnol[aoie])'],
+    ['NL','(?:olanda|olandes[ei]|paesi bassi|nederland|netherlands)'],['AT','(?:austria|austriac[aohei]+|osterreich)'],['LU','(?:lussemburgo|lussemburghes[ei]|luxembourg|luxemburg)']];
   var NEG = '(?:no|non|senza|escludi|escluso|esclusa|esclusi|escluse|tranne|niente)';
   var GEAR_A = '(?:automatico|automatica|automatici|automatiche|automatic|automatik|automatique|automatizzato|autom|aut|dsg|tiptronic|steptronic|s[- ]?tronic|pdk|cvt)';
   var GEAR_M = '(?:manuale|manuali|manual|manuel|manuelle|schaltgetriebe|schalter)';
@@ -697,7 +707,7 @@ var CV = (function(){
     if(c.damaged==='only') a.push('solo incidentate');
     else if(c.damaged==='yes') a.push('anche incidentate');
     if(c.excl && c.excl.length) a.push('senza: '+c.excl.join(', '));
-    if(c.countries && c.countries.length) a.push('solo '+c.countries.map(function(k){ return {DE:'Germania', BE:'Belgio', FR:'Francia', ES:'Spagna'}[k]; }).join(', '));
+    if(c.countries && c.countries.length) a.push('solo '+c.countries.map(function(k){ return {DE:'Germania', BE:'Belgio', FR:'Francia', ES:'Spagna', NL:'Olanda', AT:'Austria', LU:'Lussemburgo'}[k]; }).join(', '));
     if(c.fixed && c.fixed.length) a.push('corretto: '+c.fixed.join(', '));
     if(c.ignored && c.ignored.length) a.push('non filtrato: '+c.ignored.join(', '));
     return a.join(' · ');
@@ -792,10 +802,13 @@ var CV = (function(){
     path: function(c,s){
       if(!c.make) return null;
       var p = parts(c), mk = (s.mk && s.mk[c.make.slug]) || c.make.slug, md = familySlug(c, s.cls||'classe', s.clsAfter) || p.m1, links = [], q = siteQuery(c, s.q);
+      var sm = s.ser ? /^serie-(\d)$/.exec(md||'') : null;
+      if(sm) md = s.ser.replace('{n}', sm[1]);  // il nome che il sito da' alle serie BMW ("3er-reihe")
       var model = md && s.tpl[0];
       if(model) links.push({label:'Marca e modello', url:withQuery(s.tpl[0].replace('{mk}',mk).replace('{md}',md), q)});
       links.push({label:model?'Solo marca':'Apri ricerca', url:withQuery(s.tpl[1].replace('{mk}',mk), q)});
-      return {method:s.q?'filtri':'modello', links:links, pageParam:s.pageParam||''};
+      var filters = s.q && Object.keys(s.q).some(function(k){ return k!=='fix'; });
+      return {method:filters?'filtri':'modello', links:links, pageParam:s.pageParam||''};
     },
     // Spoticar (Stellantis), stessa piattaforma nei quattro paesi. Provati su spoticar.de il 23/11/2026: brand, model, min_price, max_price,
     // min_year, max_year, max_km, energy=diesel, sort=price_asc, page. Una marca scritta male viene ignorata (tornano tutte le auto): Mercedes e' "mercedes".
@@ -863,6 +876,8 @@ var CV = (function(){
       var q = siteQuery(c, {pmin:'s[min_price]', pmax:'s[max_price]', ymin:'s[min_year]', kmax:'s[max_km]'});
       if(md && trim) links.push({label:'Modello e allestimento', url:withQuery(s.base+enc(mk)+'/'+enc(md)+'/t-'+enc(trim), q)});
       if(md) links.push({label:'Marca e modello', url:withQuery(s.base+enc(mk)+'/'+enc(md), q)});
+      // AutoUncle tiene le Golf divise per generazione ("Golf VII", "Golf VIII"): la pagina che le riunisce e' "Golf Series" (vista il 24/11/2026)
+      if(mk==='VW' && md==='Golf') links.push({label:'Tutte le generazioni', url:withQuery(s.base+'VW/Golf%20Series', q), also:true});
       links.push({label:md?'Solo marca':'Apri ricerca', url:withQuery(s.base+enc(mk), q)});
       return {method:q?'filtri':'modello', links:links};
     },
@@ -938,6 +953,17 @@ var CV = (function(){
     {n:'HR Motor', d:'hrmotor.com', c:'ES', t:'Rivenditore'},
     {n:'Canalcar', d:'canalcar.es', c:'ES', t:'Rivenditore'},
     {n:'Das WeltAuto', d:'dasweltauto.es', c:'ES', t:'Usato di marca'},
+    // Olanda, Austria, Lussemburgo (indirizzi provati dal vivo il 24/11/2026)
+    {n:'AutoScout24', d:'autoscout24.nl', c:'NL', t:'Portale', k:'as24', cy:'NL', v:1},
+    {n:'Marktplaats', d:'marktplaats.nl', c:'NL', t:'Annunci tra privati', k:'marktplaats', base:'https://www.marktplaats.nl/l/auto-s/', lang:'nl', v:1},
+    {n:'AutoUncle', d:'autouncle.nl', c:'NL', t:'Aggregatore', k:'uncle', base:'https://www.autouncle.nl/nl-nl/gebruikte-auto/', v:1},
+    {n:'AutoScout24', d:'autoscout24.at', c:'AT', t:'Portale', k:'as24', cy:'A', v:1},
+    {n:'AutoUncle', d:'autouncle.at', c:'AT', t:'Aggregatore', k:'uncle', base:'https://www.autouncle.at/de-at/gebrauchtwagen/', v:1},
+    // willhaben: pagina del modello, 90 annunci per pagina. Prezzo, anno e km non vanno nell'indirizzo: le regole del sito (robots.txt) vietano ai programmi le pagine filtrate
+    {n:'willhaben', d:'willhaben.at', c:'AT', t:'Annunci tra privati', k:'path', tpl:['https://www.willhaben.at/iad/gebrauchtwagen/auto/{mk}-gebrauchtwagen/{md}','https://www.willhaben.at/iad/gebrauchtwagen/auto/{mk}-gebrauchtwagen'],
+      mk:{'volkswagen':'vw'}, cls:'klasse', clsAfter:1, ser:'{n}er-reihe', q:{fix:'rows=90'}, pageParam:'page', v:1, st:1},
+    {n:'AutoScout24', d:'autoscout24.lu', c:'LU', t:'Portale', k:'as24', cy:'L', v:1},
+    {n:'Luxauto', d:'luxauto.lu', c:'LU', t:'Portale', k:'path', tpl:['https://www.luxauto.lu/fr/vente/voiture/{mk}/{md}','https://www.luxauto.lu/fr/vente/voiture/{mk}'], mk:{'volkswagen':'vw','mercedes-benz':'mercedes'}, pageParam:'page', v:1, st:1},
     // Tutta Europa
     {n:'TheParking', d:'theparking.eu', c:'EU', t:'Aggregatore', k:'path', tpl:['https://www.theparking.eu/used-cars/{mk}-{md}.html','https://www.theparking.eu/used-cars/{mk}.html'], mk:{'mercedes-benz':'mercedes'}, cls:'class', clsAfter:1, v:1},
     {n:'Carvago', d:'carvago.com', c:'EU', t:'Rivenditore', k:'path', tpl:['https://carvago.com/cars/{mk}/{md}','https://carvago.com/cars/{mk}'], cls:'class', clsAfter:1, pageParam:'page',
@@ -956,7 +982,7 @@ var CV = (function(){
     {n:'Alcopa Auction', d:'alcopa-auction.fr', c:'B2B', home:'https://www.alcopa-auction.fr/'},
     {n:'VPauto', d:'vpauto.fr', c:'B2B', home:'https://www.vpauto.fr/'}
   ];
-  var COUNTRIES = [['DE','Germania','D'],['BE','Belgio','B'],['FR','Francia','F'],['ES','Spagna','E'],['EU','Tutta Europa','EU'],['B2B','Aste e piattaforme per commercianti','B2B']];
+  var COUNTRIES = [['DE','Germania','D'],['BE','Belgio','B'],['FR','Francia','F'],['ES','Spagna','E'],['NL','Olanda','NL'],['AT','Austria','A'],['LU','Lussemburgo','L'],['EU','Tutta Europa','EU'],['B2B','Aste e piattaforme per commercianti','B2B']];
   var METHOD = {filtri:'Filtri completi', parole:'Parole chiave e prezzo', modello:'Marca e modello', google:'Via Google', home:'Accesso riservato'};
 
   function googleUrl(site, c){ var p = parts(c); return 'https://www.google.com/search?q='+enc('site:'+site.d+' '+p.q); }
@@ -1012,7 +1038,8 @@ var CV = (function(){
     siblingsFor(c).forEach(function(ph){ var nm = ph.replace(' *',''); if(seen.indexOf(nm)<0 && !seen.some(function(o){ return o.toLowerCase().indexOf(nm.toLowerCase())>=0; })) seen.push(nm); });
     return seen;
   }
-  var DISCOVER = {DE:{gl:'de',hl:'de',w:'gebraucht kaufen'}, FR:{gl:'fr',hl:'fr',w:'occasion'}, ES:{gl:'es',hl:'es',w:'segunda mano'}, BE:{gl:'be',hl:'fr',w:'occasion Belgique'}};
+  var DISCOVER = {DE:{gl:'de',hl:'de',w:'gebraucht kaufen'}, FR:{gl:'fr',hl:'fr',w:'occasion'}, ES:{gl:'es',hl:'es',w:'segunda mano'}, BE:{gl:'be',hl:'fr',w:'occasion Belgique'},
+    NL:{gl:'nl',hl:'nl',w:'occasion kopen'}, AT:{gl:'at',hl:'de',w:'gebraucht kaufen Österreich'}, LU:{gl:'lu',hl:'fr',w:'occasion Luxembourg'}};
   function discoverQueries(c, countries){
     var p = parts(c); if(!p.q) return [];
     return countries.filter(function(k){ return DISCOVER[k]; }).map(function(k){
@@ -1030,12 +1057,43 @@ if(typeof module!=='undefined') module.exports = CV;
   var LOCAL = window.CV_LOCAL || null;
   var EXAMPLE = 'BMW 320d touring dal 2019 max 25000 euro sotto 120000 km automatico';
   var crit = CV.parseQuery(''), lastQ = '', qTimer = null, autoCountries = false;
-  var active = {DE:true, BE:true, FR:true, ES:true, EU:true, B2B:true};
+  var active = {DE:true, BE:true, FR:true, ES:true, NL:true, AT:true, LU:true, EU:true, B2B:true};
+  var NAT = ['DE','BE','FR','ES','NL','AT','LU'];  // i paesi (non "tutta Europa" ne' le piattaforme per commercianti)
   var custom = [];
-  var scan = {job:null, timer:null, data:null, mode:'direct', showUnk:false, sort:{k:'price', dir:1}};
+  var scan = {job:null, timer:null, data:null, mode:'direct', showUnk:false, onlyNew:false, onlyFav:false, showHid:false, sort:{k:'price', dir:1}};
+  // annunci nascosti e interessanti: li tiene il programma, su questo computer
+  var marks = {hk:{}, fk:{}, fav:[], hiddenN:0, seen:0};
+  function setMarks(m){
+    marks = {hk:{}, fk:{}, fav:m.fav||[], hiddenN:m.hiddenN||0, seen:m.seen||0};
+    (m.hiddenKeys||[]).forEach(function(k){ marks.hk[k] = 1; }); (m.favKeys||[]).forEach(function(k){ marks.fk[k] = 1; });
+  }
+  function keysOf(r){ var a = r.k ? [r.k] : []; (r.ks||r.keys||[]).forEach(function(k){ a.push(k); }); if(r.sg) a.push(r.sg); return a; }
+  function isHid(r){ return keysOf(r).some(function(k){ return marks.hk[k]; }); }
+  function isFav(r){ return keysOf(r).some(function(k){ return marks.fk[k]; }); }
+  function markOp(body){
+    return api('/api/marks', body).then(function(m){ setMarks(m); renderScan(); renderFav(); })
+      .catch(function(err){ if($('favMsg')) $('favMsg').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; renderScan(); });
+  }
+  function loadMarks(){ api('/api/marks').then(function(m){ setMarks(m); renderScan(); renderFav(); }).catch(function(){}); }
+  function renderFav(){
+    var box = $('favBox'); if(!box) return;
+    var f = marks.fav;
+    box.hidden = !f.length && !marks.hiddenN;
+    $('favSum').textContent = '★ Interessanti salvati: '+f.length+(marks.hiddenN ? ' · Annunci nascosti: '+marks.hiddenN : '');
+    $('favList').innerHTML = (f.length ? '<ul class="plain favl">'+f.map(function(x, i){
+        var bits = [];
+        if(x.price) bits.push(fmt(x.price)+' €'); if(x.km!=null) bits.push(fmt(x.km)+' km'); if(x.year) bits.push(x.year);
+        if(x.site) bits.push(x.site+(x.country ? ' ('+x.country+')' : ''));
+        if(x.t) bits.push('salvato il '+new Date(x.t*1000).toLocaleDateString('it-IT'));
+        return '<li><a href="'+esc(/^https?:\/\//.test(x.url||'') ? x.url : '#')+'" target="_blank" rel="noopener noreferrer">'+esc(x.title||'Annuncio')+'</a> <span class="dom">'+esc(bits.join(' · '))+'</span> '
+          + '<button type="button" class="small ghost" data-unfav="'+i+'">Togli</button></li>';
+      }).join('')+'</ul>' : '<p class="hint">Nessun annuncio segnato come interessante: usa il tasto «Interessante» accanto a un annuncio.</p>')
+      + (marks.hiddenN ? '<p class="hint" style="margin-top:10px">Annunci nascosti: '+marks.hiddenN+'. Non compaiono più nelle ricerche. <button type="button" class="small ghost" id="unhideAll">Ripristina tutti i nascosti</button></p>' : '')
+      + '<div id="favMsg"></div>';
+  }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   function store(k,v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)||'null'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
-  var PAGE_V = '2.6';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
+  var PAGE_V = '2.7';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
   var DOWN_MSG = 'Il programma non risponde. Se la finestra nera è chiusa, fai doppio clic su Avvia.bat (su Mac: avvia.command): si apre una scheda nuova, usa quella.';
   var OLD_MSG = 'Questa scheda sta parlando con una versione vecchia del programma rimasta aperta. Chiudi tutte le finestre nere, poi fai doppio clic su Avvia.bat nella cartella nuova (Cercaveicoli-'+PAGE_V+').';
   function ss(k, v){ try{ if(v===undefined) return sessionStorage.getItem(k); if(v===null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); }catch(e){} return null; }
@@ -1236,7 +1294,7 @@ if(typeof module!=='undefined') module.exports = CV;
       yearMin:crit.yearMin, yearMax:crit.yearMax, kmMin:crit.kmMin||null, kmMax:crit.kmMax, gear:crit.gear, fuel:crit.fuel, body:crit.body||'',
       powerMin:crit.powerMin||null, powerMax:crit.powerMax||null, seller:crit.seller||'', vat:!!crit.vat, damaged:crit.damaged||'no', drive:crit.drive||'', color:crit.color||'',
       eq:crit.eq||[], owners1:!!crit.owners1, seatsMin:crit.seatsMin||null, doors:crit.doors||null, excl:crit.excl||[], siblings:CV.siblingsFor(crit),
-      countries:['DE','BE','FR','ES'].filter(function(k){ return active[k]; }).length < 4 ? ['DE','BE','FR','ES'].filter(function(k){ return active[k]; }) : []};
+      countries:NAT.filter(function(k){ return active[k]; }).length < NAT.length ? NAT.filter(function(k){ return active[k]; }) : []};
   }
   function knownSites(){ return allSites().map(function(s){ return {d:s.d, n:s.n, c:(s.c==='B2B' || s.c==='EU') ? '' : s.c}; }); }
   function hasKey(){ var s = LOCAL.status || {}; return !!(s.hasKey && s.zone); }
@@ -1259,6 +1317,7 @@ if(typeof module!=='undefined') module.exports = CV;
       + '<div id="scanSum"></div><div id="verifyBox"></div>'
       + '<details id="progBox" hidden><summary id="progSum">Che cosa ha risposto ogni sito</summary><div class="progress" id="scanProg"></div></details>'
       + '<div id="scanOut"></div>'
+      + '<details id="favBox" hidden><summary id="favSum"></summary><div id="favList"></div></details>'
       + '<details id="pasteBox"><summary>Aggiungere a mano un sito che non si è lasciato leggere</summary>'
       + '<ol class="plain"><li>Apri la ricerca di quel sito con il suo pulsante.</li><li>Sulla pagina dei risultati premi Ctrl+A e poi Ctrl+C.</li><li>Torna qui, clicca nel riquadro e premi Ctrl+V.</li></ol>'
       + '<textarea id="pasteArea" rows="2" placeholder="Clicca qui e premi Ctrl+V" aria-label="Incolla qui la pagina dei risultati copiata dal sito"></textarea><div id="pasteMsg" style="margin-top:8px"></div></details>'
@@ -1298,7 +1357,28 @@ if(typeof module!=='undefined') module.exports = CV;
     });
     $('useBD').addEventListener('change', function(){ store('cv_usebd', $('useBD').checked); showKeyState(); });
     $('pasteArea').addEventListener('paste', onPaste);
-    $('scanOut').addEventListener('change', function(e){ if(e.target && e.target.id==='showUnk'){ scan.showUnk = e.target.checked; renderScan(); } });
+    $('scanOut').addEventListener('change', function(e){
+      var t = e.target, map = {showUnk:'showUnk', onlyNew:'onlyNew', onlyFav:'onlyFav', showHid:'showHid'};
+      if(t && map[t.id]){ scan[map[t.id]] = t.checked; renderScan(); }
+    });
+    $('scanOut').addEventListener('click', function(e){
+      var b = e.target.closest ? e.target.closest('button.mk') : null;
+      if(!b || !scan.rows) return;
+      var r = scan.rows[+b.getAttribute('data-i')], a = b.getAttribute('data-a');
+      if(!r) return;
+      b.disabled = true;
+      if(a==='hide' || a==='fav') markOp({op:a, item:{url:r.url, alsoUrl:r.alsoUrl||[], title:r.title||'', price:r.price, km:r.km, year:r.year, site:r.site||'', country:r.country||'', img:r.img||'', gear:r.gear||'', fuel:r.fuel||''}});
+      else markOp({op:a, keys:keysOf(r)});
+    });
+    $('favBox').addEventListener('click', function(e){
+      var t = e.target;
+      if(t && t.getAttribute && t.getAttribute('data-unfav')!==null){ var x = marks.fav[+t.getAttribute('data-unfav')]; if(x){ t.disabled = true; markOp({op:'unfav', keys:keysOf(x)}); } }
+      else if(t && t.id==='unhideAll'){
+        if(t.getAttribute('data-sure')){ t.disabled = true; markOp({op:'unhideAll'}); }
+        else { t.setAttribute('data-sure','1'); t.textContent = 'Sicuro? Clicca di nuovo per ripristinarli tutti'; }
+      }
+    });
+    loadMarks();
     $('verifyBox').addEventListener('click', function(e){ if(e.target && e.target.id==='retryBtn') retry(); });
     api('/api/status').then(function(j){ LOCAL.status = j; showKeyState(); showBrowserHelp(); if(j.hasKey && !j.zone) verifySaved(); }).catch(function(){});
     showBrowserHelp();
@@ -1343,7 +1423,7 @@ if(typeof module!=='undefined') module.exports = CV;
     var jobs = scanJobs(), useBD = useBDOpt();
     if(!jobs.length){ $('scanState').innerHTML = '<p class="msg warn">Scrivi almeno la marca o il modello dell\'auto, poi premi Cerca.</p>'; return; }
     if(scan.timer){ clearInterval(scan.timer); scan.timer = null; }
-    scan.desc = CV.describe(crit); scan.crit = crit; scan.data = null; scan.job = null; scan.showUnk = false;
+    scan.desc = CV.describe(crit); scan.crit = crit; scan.data = null; scan.job = null; scan.showUnk = false; scan.onlyNew = false; scan.onlyFav = false; scan.showHid = false;
     var disc = useBD && (LOCAL.status || {}).serpZone && $('disc').checked ? CV.discoverQueries(crit, activeList()) : [];
     scan.mode = 'direct';
     $('scanOut').innerHTML = ''; $('scanSum').innerHTML = ''; $('verifyBox').innerHTML = ''; $('scanProg').innerHTML = ''; $('progBox').hidden = true;
@@ -1404,7 +1484,9 @@ if(typeof module!=='undefined') module.exports = CV;
       var txt = t.status==='ok' ? t.n+(t.n===1?' annuncio':' annunci') : (STATUS_TXT[t.status] || t.msg);
       return '<span class="pill '+cls+'" title="'+esc((t.msg||'')+(t.note ? ' '+t.note : ''))+'">'+esc(siteLabel(t))+(t.manual ? ', incollato' : (t.via==='browser' ? ', dal browser' : (t.via==='brightdata' ? ', da Bright Data' : '')))+': '+esc(txt)+'</span>';
     }).join('');
-    var all = d.results, good = all.filter(function(r){ return !(r.unk && r.unk.length); }), unk = all.length - good.length;
+    // gli annunci nascosti dall'utente non contano e non si vedono, finche' non chiede di rivederli
+    var every = d.results, all = every.filter(function(r){ return !isHid(r); }), hidN = every.length - all.length;
+    var good = all.filter(function(r){ return !(r.unk && r.unk.length); }), unk = all.length - good.length;
     if(!d.done){
       var now = d.tasks.filter(function(t){ return t.status==='browser'; })[0];
       var line = 'Sto leggendo i siti: '+finished+' su '+total+' fatti, '+good.length+(good.length===1 ? ' annuncio trovato' : ' annunci trovati')+' finora.';
@@ -1438,15 +1520,25 @@ if(typeof module!=='undefined') module.exports = CV;
         + esc(ver.map(siteLabel).join(', '))+'. '+(ver.length===1 ? 'La sua pagina è rimasta aperta' : 'Le loro pagine sono rimaste aperte')+' nella finestra del browser: se vuoi quegli annunci, rispondi lì e poi premi il pulsante. Altrimenti chiudi quella finestra.</p>'
         + '<div class="row"><button type="button" id="retryBtn">Ho risposto: rileggi</button></div></div>' : '';
     }
-    var rows = (scan.showUnk ? all : good).slice(), k = scan.sort.k, dir = scan.sort.dir;
+    var base = scan.showUnk ? all : good, k = scan.sort.k, dir = scan.sort.dir;
+    // "nuovo" = mai uscito nelle ricerche di prima; ha senso dirlo solo se in tabella ci sono anche annunci gia' visti
+    var newN = base.filter(function(r){ return r['new']; }).length, mixNew = newN>0 && newN<base.length, favN = base.filter(isFav).length;
+    var rows = base.slice();
+    if(scan.onlyNew && mixNew) rows = rows.filter(function(r){ return r['new']; });
+    if(scan.onlyFav && favN) rows = rows.filter(isFav);
+    if(scan.showHid && hidN) rows = rows.concat(every.filter(isHid));
     rows.sort(function(a,b){ var x=a[k], y=b[k]; if(x==null) return 1; if(y==null) return -1; return (x<y?-1:x>y?1:0)*dir; });
     var out = '';
-    if(all.length || d.done){
+    if(every.length || d.done){
       if(scan.desc) out += '<p class="hint" style="margin:12px 0 0">Ricerca controllata: '+esc(scan.desc)+'</p>';
       out += '<div class="row" style="margin:12px 0 8px"><strong>'+good.length+(good.length===1?' annuncio verificato':' annunci verificati')+'</strong>'
         + (unk ? '<label class="chk" style="padding-left:12px"><input type="checkbox" id="showUnk" style="margin:0 6px 0 0"'+(scan.showUnk?' checked':'')+'>Mostra anche '+unk+(unk===1?' annuncio che non indica':' annunci che non indicano')+' tutti i dati richiesti</label>' : '')
+        + (mixNew ? '<label class="chk" style="padding-left:12px"><input type="checkbox" id="onlyNew" style="margin:0 6px 0 0"'+(scan.onlyNew?' checked':'')+'>Solo i '+newN+' nuovi</label>' : '')
+        + (favN ? '<label class="chk" style="padding-left:12px"><input type="checkbox" id="onlyFav" style="margin:0 6px 0 0"'+(scan.onlyFav?' checked':'')+'>Solo '+(favN===1?'l\'interessante':'i '+favN+' interessanti')+'</label>' : '')
+        + (hidN ? '<label class="chk" style="padding-left:12px"><input type="checkbox" id="showHid" style="margin:0 6px 0 0"'+(scan.showHid?' checked':'')+'>Mostra '+(hidN===1?'l\'annuncio nascosto':'i '+hidN+' nascosti')+'</label>' : '')
         + (all.length ? '<a class="btn small ghost" href="/api/export?job='+esc(scan.job)+'&t='+esc(LOCAL.token)+'">Scarica per Excel (CSV)</a>' : '')
         + (d.done ? '<a class="btn small ghost" href="/api/diag?job='+esc(scan.job)+'&t='+esc(LOCAL.token)+'" title="Le pagine lette in questa ricerca: da inviare se un sito viene letto male">Scarica diagnostica</a>' : '')+'</div>';
+      if(d.done && base.length && !newN) out += '<p class="hint" style="margin:0 0 8px">Nessun annuncio nuovo rispetto alle ricerche di prima.</p>';
     }
     if(rows.length){
       var hasPw = rows.some(function(r){ return r.power; });
@@ -1454,8 +1546,8 @@ if(typeof module!=='undefined') module.exports = CV;
       scan.rows = rows;
       out += '<div class="tablewrap"><table><thead><tr>'+(photos ? '<th class="ph">Foto</th>' : '')+'<th data-s="title">Veicolo</th><th class="num" data-s="price">Prezzo €</th><th class="num" data-s="km">Km</th><th class="num" data-s="year">Anno</th>'
         + (hasPw ? '<th class="num" data-s="power">CV</th>' : '')+'<th data-s="gear">Cambio</th><th data-s="fuel">Alim.</th><th data-s="country">Paese</th><th data-s="site">Sito</th></tr></thead><tbody>'
-        + rows.map(function(r){
-          var sub = [];
+        + rows.map(function(r, ri){
+          var sub = [], hid = isHid(r), fav = !hid && isFav(r);
           if(r.seller) sub.push(esc(r.seller));
           if(r.iva) sub.push('IVA detraibile');
           if(r.also && r.also.length) sub.push('anche su '+r.also.map(function(nm, k){
@@ -1464,13 +1556,16 @@ if(typeof module!=='undefined') module.exports = CV;
           }).join(', '));
           if(r.dmg) sub.push('<span class="flag">Incidentata o con danni dichiarati</span>');
           if(r.unk && r.unk.length) sub.push('<span class="flag">Non indicato nell\'annuncio: '+esc(r.unk.join(', '))+'</span>');
-          return '<tr>'+(photos ? photoCell(r, rows.indexOf(r)) : '')+'<td><a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">'+esc(r.title||'Annuncio')+'</a>'+(sub.length ? '<div class="sub">'+sub.join(' · ')+'</div>' : '')+'</td>'
+          var choice = hid ? '<button type="button" class="mk" data-a="unhide" data-i="'+ri+'" title="Torna a mostrarlo nelle ricerche">Ripristina</button>'
+            : '<button type="button" class="mk'+(fav?' on':'')+'" data-a="'+(fav?'unfav':'fav')+'" data-i="'+ri+'" title="'+(fav ? 'Segnato come interessante: clicca per togliere il segno' : 'Lo salva tra gli interessanti: lo ritrovi anche nelle prossime ricerche')+'">'+(fav?'★':'☆')+' Interessante</button>'
+            + '<button type="button" class="mk" data-a="hide" data-i="'+ri+'" title="Non mostrarlo più: sparisce da questa ricerca e non torna nelle prossime">✕ Nascondi</button>';
+          return '<tr'+(hid?' class="hid"':'')+'>'+(photos ? photoCell(r, ri) : '')+'<td><a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">'+esc(r.title||'Annuncio')+'</a>'+(mixNew && r['new'] && !hid ? ' <span class="newb">nuovo</span>' : '')+(hid ? ' <span class="newb off">nascosto</span>' : '')+(sub.length ? '<div class="sub">'+sub.join(' · ')+'</div>' : '')+'<div class="mkr">'+choice+'</div></td>'
             + '<td class="num">'+fmt(r.price)+'</td><td class="num">'+fmt(r.km)+'</td><td class="num">'+(r.year||'')+'</td>'+(hasPw ? '<td class="num">'+(r.power||'')+'</td>' : '')
             + '<td'+(r.gsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : '')+'>'+esc(GEAR_TXT[r.gear]||'')+'</td><td'+(r.fsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : '')+'>'+esc(FUEL_TXT[r.fuel]||'')+'</td><td>'+esc(r.country||'')+'</td><td>'+esc(r.site)+'</td></tr>';
         }).join('')
         + '</tbody></table></div>';
     } else if(d.done){
-      out += '<p class="msg warn">'+(unk ? 'Nessun annuncio dichiara tutti i dati richiesti. Spunta la casella qui sopra per vedere quelli con dati mancanti.' : 'Nessun annuncio corrisponde a tutti i filtri. Prova ad allargarli (prezzo, anno, km) oppure togli qualche parola dalla descrizione.')+'</p>';
+      out += '<p class="msg warn">'+(hidN && !all.length ? 'Gli annunci di questa ricerca sono tutti tra quelli che hai nascosto. Spunta «Mostra i nascosti» qui sopra per rivederli.' : unk ? 'Nessun annuncio dichiara tutti i dati richiesti. Spunta la casella qui sopra per vedere quelli con dati mancanti.' : 'Nessun annuncio corrisponde a tutti i filtri. Prova ad allargarli (prezzo, anno, km) oppure togli qualche parola dalla descrizione.')+'</p>';
     }
     if(d.found && d.found.length){
       out += '<h3 style="font-family:var(--font-display);font-size:19px;margin:16px 0 6px">Altri siti trovati con Google</h3><ul class="plain">'
@@ -1554,8 +1649,8 @@ if(typeof module!=='undefined') module.exports = CV;
   function parseAndRender(){
     clearTimeout(qTimer); lastQ = $('q').value; crit = CV.parseQuery(lastQ);
     if(crit.countries && crit.countries.length){  // "solo germania": i paesi seguono quello che e' scritto
-      ['DE','BE','FR','ES'].forEach(function(k){ active[k] = crit.countries.indexOf(k)>=0; }); autoCountries = true; renderCountries();
-    } else if(autoCountries){ ['DE','BE','FR','ES'].forEach(function(k){ active[k] = true; }); autoCountries = false; renderCountries(); }
+      NAT.forEach(function(k){ active[k] = crit.countries.indexOf(k)>=0; }); autoCountries = true; renderCountries();
+    } else if(autoCountries){ NAT.forEach(function(k){ active[k] = true; }); autoCountries = false; renderCountries(); }
     critToFields(); renderLinks();
   }
   function syncQuery(){ if($('q').value !== lastQ) parseAndRender(); }

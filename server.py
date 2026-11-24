@@ -68,9 +68,9 @@ BOOT = secrets.token_hex(6)  # cambia a ogni avvio: la pagina se ne accorge e si
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 MAX_PAGES_PER_SCAN = 60
-VERSION = '2.6'
+VERSION = '2.7'
 # Lettura diretta: il programma si presenta con il proprio nome, senza fingersi un browser
-UA = "CercaveicoliImport/2.6 (ricerca auto avviata dall'utente; poche pagine per sito)"
+UA = "CercaveicoliImport/2.7 (ricerca auto avviata dall'utente; poche pagine per sito)"
 ROBOT_NAME = 'cercaveicoliimport'
 DIRECT_GAP = float(os.environ.get('CV_DIRECT_GAP') or 1.2)  # secondi tra due letture dello stesso sito
 TEST_ORIGIN = os.environ.get('CV_TEST_ORIGIN', '').rstrip('/')  # solo per le prove
@@ -1022,11 +1022,11 @@ def power_from(text):
 
 
 VAT_NEG = re.compile(r'(?:nicht\s+ausweisbar|ohne\s+mwst|differenzbesteuer\w*|(?:§|par\.?)\s?25\s?a|25a\s+ustg|iva\s+non\s+(?:deducibile|detraibile|esposta|esponibile)|'
-                     r'tva\s+non\s+(?:recuperable|deductible)|sans\s+tva|iva\s+no\s+deducible|sin\s+iva\s+deducible|regimen\s+(?:especial\s+)?de\s+bienes\s+usados|\brebu\b|'
+                     r'tva\s+non\s+(?:recup\w*|deductible)|sans\s+tva|iva\s+no\s+deducible|sin\s+iva\s+deducible|regimen\s+(?:especial\s+)?de\s+bienes\s+usados|\brebu\b|'
                      r'regime\s+del\s+margine|margeregeling|marge\s?auto|marge\s?wagen|btw\s+niet\s+(?:aftrekbaar|verrekenbaar)|regime\s+de\s+la\s+marge|tva\s+sur\s+(?:la\s+)?marge)')
 VAT_POS = re.compile(r'(?:mwst\.?\s*(?:ist\s+)?ausweisbar|ausweisbare\s+mwst|inkl\.?\s*\d{1,2}(?:[.,]\d)?\s?%\s*mwst|\d{1,2}(?:[.,]\d)?\s?%\s*mwst|zzgl\.?\s*mwst|\+\s?mwst|'
-                     r'iva\s+(?:deducibile|detraibile|esposta|esponibile)|\+\s?iva\b|tva\s+(?:recuperable|deductible)|prix\s+ht\b|hors\s+taxes?|iva\s+deducible|precio\s+sin\s+iva|'
-                     r'btw\s+(?:aftrekbaar|verrekenbaar)|btw[- ]auto|btw[- ]wagen|excl\.?\s*btw|ex\.?\s*btw|vat\s+(?:deductible|reclaimable|qualifying))')
+                     r'iva\s+(?:deducibile|detraibile|esposta|esponibile)|\+\s?iva\b|tva\s+(?:recup\w*|deductible)|prix\s+ht\b|hors\s+taxes?|iva\s+deducible|precio\s+sin\s+iva|'
+                     r'btw\s+(?:aftrekbaar|verrekenbaar)|btw[- ]auto|btw[- ]wagen|excl\.?\s*btw|ex\.?\s*btw|vat\s+(?:deductible|reclaimable|qualifying|recov\w*))')
 
 
 def vat_hint(text):
@@ -1695,6 +1695,46 @@ def parse_marktplaats(html, base_url):
     return out
 
 
+def parse_willhaben(html, base_url):
+    """willhaben.at: ogni annuncio e' un elenco di attributi con nome (HEADING, PRICE, MILEAGE, YEAR_MODEL, SEO_URL...)."""
+    data = _next_data(html)
+    try:
+        ads = data['props']['pageProps']['searchResult']['advertSummaryList']['advertSummary']
+    except (TypeError, KeyError):
+        return []
+    out = []
+    for ad in ads or []:
+        if not isinstance(ad, dict):
+            continue
+        at = {}
+        for a in ((ad.get('attributes') or {}).get('attribute') or []):
+            if isinstance(a, dict) and a.get('name') and isinstance(a.get('values'), list) and a['values']:
+                at.setdefault(str(a['name']), a['values'][0])
+        seo = str(at.get('SEO_URL') or '')
+        if not seo:
+            continue
+        num = lambda k: _num(at.get(k)) if at.get(k) not in (None, '') else None
+        price, km, kw = num('PRICE'), num('MILEAGE'), num('ENGINE/EFFECT')
+        title = str(at.get('HEADING') or ad.get('description') or '')
+        extra = {'seller': {'1': 'Privato', '0': 'Concessionario'}.get(str(at.get('ISPRIVATE')), '')}
+        cc = COUNTRY_TOKENS.get(_plain(at.get('COUNTRY') or ''))
+        if cc:
+            extra['cc'] = cc
+        if kw and 20 <= kw <= 1200:
+            extra['power'] = int(round(kw * 1.35962))
+        item = _item(title, int(price) if price else None, int(km) if km is not None else None, _year_from(at.get('YEAR_MODEL')),
+                     gear_label(str(at.get('TRANSMISSION_RESOLVED') or ''), True), fuel_label(str(at.get('ENGINE/FUEL_RESOLVED') or '')),
+                     urljoin('https://www.willhaben.at/iad/', seo), 'dati', ' | '.join(x for x in (title, str(at.get('CONDITION_RESOLVED') or '')) if x), **extra)
+        pics = [x for x in str(at.get('ALL_IMAGE_URLS') or '').split(';') if re.fullmatch(r'[\w/.-]{6,120}\.(?:jpe?g|png|webp)', x)][:MAX_PHOTOS]
+        photos = ['https://cache.willhaben.at/mmo/' + re.sub(r'\.(jpe?g|png|webp)$', r'_hoved.\1', x) for x in pics]
+        if not photos and re.match(r'https://cache\.willhaben\.at/mmo/[\w/.-]+$', str(at.get('MMO') or '')):
+            photos = [str(at['MMO'])]
+        if photos:
+            item['img'], item['imgs'] = photos[0], photos
+        out.append(item)
+    return out
+
+
 def parse_cochescom(html, base_url):
     data = _next_data(html)
     try:
@@ -1743,7 +1783,7 @@ def parse_flexicar(html, base_url):
 
 
 SITE_PARSERS = (('autoscout24.', parse_autoscout24), ('2ememain.be', parse_marktplaats), ('2dehands.be', parse_marktplaats), ('marktplaats.nl', parse_marktplaats),
-                ('coches.com', parse_cochescom), ('flexicar.es', parse_flexicar))
+                ('coches.com', parse_cochescom), ('flexicar.es', parse_flexicar), ('willhaben.at', parse_willhaben))
 
 
 # ---- dati schema.org (JSON-LD) -------------------------------------------------
@@ -2222,6 +2262,12 @@ def _card_item(texts, hrefs, base_url, imgs=()):
         return None
     now = time.localtime().tm_year
     cc = next((COUNTRY_TOKENS[t['p']] for t in toks if not t['alt'] and t['p'] in COUNTRY_TOKENS), '')
+    if not cc:  # il paese detto con una bandierina: <img src="/flags/de.svg">
+        for im in imgs:
+            m = re.search(r'/flags?/([a-z]{2})\.(?:svg|png|gif|webp)(?:$|[?#])', str(im[0]).lower())
+            if m and m.group(1) in TLD_CC:
+                cc = TLD_CC[m.group(1)]
+                break
     price = struck = None
     km = gear = fuel = None
     years, prev = [], ''
@@ -2692,7 +2738,7 @@ def judge_all(found, crit, trust=()):
 # --------------------------------------------------------------------------
 # Scansione
 # --------------------------------------------------------------------------
-CC = {'DE': 'de', 'BE': 'be', 'FR': 'fr', 'ES': 'es'}
+CC = {'DE': 'de', 'BE': 'be', 'FR': 'fr', 'ES': 'es', 'NL': 'nl', 'AT': 'at', 'LU': 'lu'}
 TLD_CC = {'de': 'DE', 'be': 'BE', 'fr': 'FR', 'es': 'ES', 'it': 'IT', 'nl': 'NL', 'at': 'AT', 'ch': 'CH', 'lu': 'LU', 'pt': 'PT'}
 DIAG_MAX_PAGE = 3000000
 DIAG_MAX_TOTAL = 60000000
@@ -2752,6 +2798,8 @@ def _unglue(title, crit):
         mk = str(mk or '').strip()
         if len(mk) >= 3:
             title = re.sub(r'(?<![A-Za-z0-9])((?i:' + re.escape(mk) + r'))(?=[A-Z0-9])', r'\1 ', title or '')
+        elif len(mk) == 2:  # sigle di due lettere ("VWGolf"): solo scritte in maiuscolo e seguite da una parola, per non spezzare "DSG"
+            title = re.sub(r'(?<![A-Za-z0-9])(' + re.escape(mk.upper()) + r')(?=[A-Z][a-z])', r'\1 ', title or '')
     return title
 
 
@@ -2957,6 +3005,124 @@ def _exact_km(x):
     return km is not None and km >= 1000 and km % 500 != 0
 
 
+# ---- annunci nascosti, interessanti e gia' visti: restano su questo computer, nella cartella dei dati ----------
+MARKS_PATH = os.path.join(data_dir(), 'annunci.json')
+MARKS_LOCK = threading.RLock()
+MARKS = {'data': None, 'dirty': False}
+SEEN_MAX = 80000
+MARK_FIELDS = ('title', 'price', 'km', 'year', 'site', 'country', 'url', 'img', 'gear', 'fuel')
+
+
+def mark_key(url):
+    return hashlib.sha1(url_key(str(url or '')).encode('utf-8')).hexdigest()[:16]
+
+
+def car_sig(x):
+    """La stessa auto anche su un altro sito: prezzo, anno e chilometri precisi."""
+    km, price, year = x.get('km'), x.get('price'), x.get('year')
+    if type(km) is not int or type(price) is not int or not _exact_km(x):
+        return ''
+    return 'c' + hashlib.sha1(('%d|%s|%d' % (km, year if type(year) is int else '', price)).encode('utf-8')).hexdigest()[:15]
+
+
+def _marks():
+    with MARKS_LOCK:
+        if MARKS['data'] is None:
+            d = load_json(MARKS_PATH, {})
+            d = d if isinstance(d, dict) else {}
+            MARKS['data'] = dict((k, d.get(k) if isinstance(d.get(k), dict) else {}) for k in ('hidden', 'fav', 'seen'))
+        return MARKS['data']
+
+
+def marks_flush():
+    with MARKS_LOCK:
+        m = MARKS['data']
+        if m is None or not MARKS['dirty']:
+            return
+        if len(m['seen']) > SEEN_MAX:  # restano i visti piu' di recente
+            m['seen'] = dict(sorted(m['seen'].items(), key=lambda kv: kv[1])[-int(SEEN_MAX * 0.8):])
+        save_json(MARKS_PATH, m)
+        MARKS['dirty'] = False
+
+
+def marks_note_seen(job, x):
+    """Segna l'annuncio come visto. True se e' nuovo, cioe' mai uscito prima di questa ricerca (nemmeno su un altro sito)."""
+    with MARKS_LOCK:
+        seen, now, fresh = _marks()['seen'], int(time.time()), job.setdefault('fresh', set())
+        keys = [k for k in (x.get('k'), x.get('sg')) if k]
+        old = any(k in seen and k not in fresh for k in keys)  # "fresh" = visti per la prima volta in questa stessa ricerca
+        for k in keys:
+            if k not in seen:
+                seen[k] = now
+                fresh.add(k)
+                MARKS['dirty'] = True
+        return not old
+
+
+def item_keys(x):
+    return [k for k in [x.get('k')] + list(x.get('ks') or []) + [x.get('sg')] if k]
+
+
+def hidden_keys():
+    with MARKS_LOCK:
+        return set(k for v in _marks()['hidden'].values() for k in (v.get('keys') or []))
+
+
+def marks_public():
+    with MARKS_LOCK:
+        m = _marks()
+        def rows(d):
+            out = [dict([('k', k), ('t', v.get('t') or 0), ('keys', v.get('keys') or [])] + [(f, v.get(f)) for f in MARK_FIELDS if v.get(f) not in (None, '')]) for k, v in d.items()]
+            return sorted(out, key=lambda r: -r['t'])
+        keys = lambda d: sorted(set(k for v in d.values() for k in (v.get('keys') or [])))
+        return {'hidden': rows(m['hidden'])[:500], 'hiddenKeys': keys(m['hidden']), 'hiddenN': len(m['hidden']),
+                'fav': rows(m['fav'])[:500], 'favKeys': keys(m['fav']), 'seen': len(m['seen'])}
+
+
+def marks_op(data):
+    """Nascondi, ripristina, segna interessante, togli il segno."""
+    data = data if isinstance(data, dict) else {}
+    op, it = str(data.get('op') or ''), data.get('item') if isinstance(data.get('item'), dict) else {}
+    with MARKS_LOCK:
+        m = _marks()
+        if op in ('hide', 'fav'):
+            url = str(it.get('url') or '')
+            if not re.match(r'https?://', url) or len(url) > 1500:
+                raise ValueError('Annuncio non valido.')
+            k = mark_key(url)
+            keys = [k] + [mark_key(u) for u in (it.get('alsoUrl') or [])[:12] if isinstance(u, str) and re.match(r'https?://', u)]
+            sg = car_sig(it)
+            if sg:
+                keys.append(sg)
+            rec = {'t': int(time.time()), 'keys': keys}
+            for f in MARK_FIELDS:
+                v = it.get(f)
+                if (type(v) is int and 0 <= v < 10 ** 8) if f in ('price', 'km', 'year') else (isinstance(v, str) and 0 < len(v) <= 1500):
+                    rec[f] = v
+            mine, other = (m['hidden'], m['fav']) if op == 'hide' else (m['fav'], m['hidden'])
+            for old in [o for o, v in other.items() if set(keys) & set(v.get('keys') or [])]:
+                del other[old]  # un annuncio nascosto non e' piu' tra gli interessanti, e viceversa
+            mine[k] = rec
+            for d, cap in ((m['hidden'], 6000), (m['fav'], 1500)):
+                if len(d) > cap:
+                    for old in sorted(d, key=lambda o: d[o].get('t') or 0)[:len(d) - cap]:
+                        del d[old]
+        elif op in ('unhide', 'unfav'):
+            keys = set(str(x) for x in (data.get('keys') or [])[:40] if isinstance(x, str))
+            d = m['hidden'] if op == 'unhide' else m['fav']
+            for old in [o for o, v in d.items() if o in keys or keys & set(v.get('keys') or [])]:
+                del d[old]
+        elif op == 'unhideAll':
+            m['hidden'] = {}
+        elif op == 'forgetSeen':
+            m['seen'] = {}
+        else:
+            raise ValueError('Operazione non valida.')
+        MARKS['dirty'] = True
+        marks_flush()
+        return marks_public()
+
+
 def _add_results(job, items):
     """Aggiunge gli annunci senza doppioni: stesso indirizzo, oppure la stessa auto pubblicata su due siti. E' la stessa auto se
     titolo, prezzo, chilometri e anno coincidono, oppure se coincidono prezzo, anno e chilometri precisi (non tondi) anche con un
@@ -2975,6 +3141,11 @@ def _add_results(job, items):
         if k in keys:
             continue
         keys.add(k)
+        x['k'] = mark_key(x['url'])
+        car = car_sig(x)
+        if car:
+            x['sg'] = car
+        fresh = marks_note_seen(job, x)
         sig = sig_of(x)
         first = twins.get(sig) if x.get('km') is not None else None
         if first is not None and (first.get('site'), _host(first.get('url'))) == (x.get('site'), _host(x.get('url'))):
@@ -2989,6 +3160,10 @@ def _add_results(job, items):
             if label.strip() not in (first.get('also') or []):
                 first.setdefault('also', []).append(label.strip())
                 first.setdefault('alsoUrl', []).append(x['url'])
+            if x['k'] not in (first.get('ks') or []):
+                first.setdefault('ks', []).append(x['k'])
+            if not fresh:
+                first['new'] = False  # la stessa auto era gia' uscita su quest'altro sito
             if first.get('unk') and not x.get('unk'):
                 first['unk'] = []  # l'altro sito dichiara anche i dati che qui mancavano
             for f in ('year', 'gear', 'fuel', 'power', 'seller'):
@@ -3003,6 +3178,7 @@ def _add_results(job, items):
             twins.setdefault(sig, x)
         if _exact_km(x):
             cars.setdefault((x.get('price'), x.get('km')), []).append(x)
+        x['new'] = fresh
         job['results'].append(x)
 
 
@@ -3119,6 +3295,7 @@ def run_job(job_id, payload):
             if kinds:
                 job['hint'] = NET_HINTS.get(kinds[0], NET_HINTS['altro'])
         job['done'] = True
+    marks_flush()
 
 
 def browser_worker(job, crit, bq, bd_after=None):
@@ -3233,6 +3410,7 @@ def retry_job(job_id):
         finally:
             with JOBS_LOCK:
                 job['done'] = True
+            marks_flush()
     threading.Thread(target=run, daemon=True).start()
     return len(todo)
 
@@ -3310,6 +3488,7 @@ def import_page(payload):
         job['tasks'].append({'site': name, 'country': country, 'status': 'ok' if kept else 'vuoto', 'n': len(kept), 'manual': True,
                              'msg': _summary(len(found), kept, dropped) if found else 'Nessun annuncio riconosciuto nella pagina incollata.', 'read': len(found), 'drop': dropped})
         _add_results(job, kept)
+    marks_flush()
     unk = sum(1 for x in kept if x.get('unk'))
     return {'job': job_id, 'site': name, 'read': len(found), 'ok': len(kept) - unk, 'unk': unk, 'drop': dropped}
 
@@ -3317,11 +3496,15 @@ def import_page(payload):
 def export_csv(job):
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';', lineterminator='\r\n')
-    w.writerow(['Veicolo', 'Prezzo EUR', 'Km', 'Anno', 'Cambio', 'Alimentazione', 'Potenza CV', 'Paese', 'Sito', 'Venditore', 'IVA detraibile', 'Dati mancanti', 'Link'])
+    w.writerow(['Veicolo', 'Prezzo EUR', 'Km', 'Anno', 'Cambio', 'Alimentazione', 'Potenza CV', 'Paese', 'Sito', 'Venditore', 'IVA detraibile', 'Dati mancanti', 'Link', 'Interessante', 'Nuovo'])
+    pub = marks_public()
+    hid, fav = set(pub['hiddenKeys']), set(pub['favKeys'])
     for r in sorted(job['results'], key=lambda x: (bool(x.get('unk')), x.get('price') is None, x.get('price') or 0)):
+        if hid & set(item_keys(r)):
+            continue  # annuncio nascosto dall'utente
         w.writerow([r.get('title', ''), r.get('price') or '', r.get('km') if r.get('km') is not None else '', r.get('year') or '',
                     GEAR_LABEL.get(r.get('gear'), ''), FUEL_LABEL.get(r.get('fuel'), ''), r.get('power') or '', r.get('country', ''), r.get('site', ''), r.get('seller', ''),
-                    'si' if r.get('iva') else '', ', '.join(r.get('unk') or []), r.get('url', '')])
+                    'si' if r.get('iva') else '', ', '.join(r.get('unk') or []), r.get('url', ''), 'si' if fav & set(item_keys(r)) else '', 'si' if r.get('new') else ''])
     return ('﻿' + buf.getvalue()).encode('utf-8')
 
 
@@ -3995,6 +4178,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, public_status())
         if u.path == '/api/sites':
             return self._send(200, load_json(SITES_PATH, []))
+        if u.path == '/api/marks':
+            return self._send(200, marks_public())
         if u.path.startswith('/api/scan/'):
             job = JOBS.get(u.path.rsplit('/', 1)[1])
             if not job:
@@ -4070,6 +4255,11 @@ class Handler(BaseHTTPRequestHandler):
                      for s in data[:200] if isinstance(s, dict)]
             save_json(SITES_PATH, clean)
             return self._send(200, clean)
+        if u.path == '/api/marks':
+            try:
+                return self._send(200, marks_op(data))
+            except ValueError as e:
+                return self._send(400, {'error': str(e)})
         if u.path == '/api/scan':
             try:
                 return self._send(200, {'job': start_job(data or {})})
@@ -4148,6 +4338,7 @@ def main():
     url = 'http://127.0.0.1:%d/' % httpd.server_address[1]
     SERVER_URL = url
     atexit.register(_shutdown_reader)
+    atexit.register(marks_flush)
     try:
         if adopt_old_config():
             print('Ho ripreso la chiave Bright Data salvata nella versione precedente.')
