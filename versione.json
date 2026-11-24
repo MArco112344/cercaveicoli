@@ -1,0 +1,22 @@
+{
+ "version": "2.5",
+ "note": "foto degli annunci in tabella e aggiornamento da solo",
+ "files": {
+  "server.py": {
+   "sha256": "082253b32dc4bd02fa12d230205b1b09e1dd40ea2e94db6713713e81ca8754e2",
+   "size": 209289
+  },
+  "index.html": {
+   "sha256": "173afd1ba3349669926a677209da778993b2209bd5277d65baa635780fe10bae",
+   "size": 127256
+  },
+  "LEGGIMI.txt": {
+   "sha256": "8a624fffb25519c9aac2e0558d5bd69e5baef28c85f3aa7320098ef7aa9e72f3",
+   "size": 10433
+  },
+  "cacert.pem": {
+   "sha256": "d87887200c9a705dccc937b9b83b5e67e47024c4a4b7f9dd15700c72e0f55453",
+   "size": 234072
+  }
+ }
+}

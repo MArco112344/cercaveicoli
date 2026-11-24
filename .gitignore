@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+sessione.json
+config.json
+errore.txt
+_nuova/
+_precedente/
+collegamento_creato.txt

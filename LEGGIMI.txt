@@ -1,0 +1,172 @@
+CERCAVEICOLI IMPORT
+Ricerca di auto usate in Germania, Belgio, Francia e Spagna.
+Gratuito: non serve nessun account.
+
+COME SI AVVIA
+  Windows: estrai la cartella dallo zip, poi doppio clic su Avvia.bat
+           La prima volta, se manca Python, il file apre il Microsoft Store
+           sulla pagina di Python: premi "Ottieni", aspetta che finisca, torna
+           sulla finestra nera e premi un tasto. Lo Store non chiede
+           l'amministratore e non scarica file che l'antivirus blocca.
+           Se Windows mostra l'avviso "PC protetto", scegli "Ulteriori
+           informazioni" e poi "Esegui comunque".
+           Se il PC e' aziendale e blocca ogni installazione, scrivimi:
+           ti do una versione con Python gia' incluso, senza niente da installare.
+  Mac:     doppio clic su avvia.command
+           La prima volta il Mac lo blocca perche' viene da internet: apri
+           Impostazioni di Sistema, Privacy e sicurezza, e in fondo premi
+           "Apri comunque" (sui Mac meno recenti: clic destro sul file, Apri).
+
+  Si apre il browser con il programma. In alto a destra nella pagina c'e'
+  scritto "Programma, versione ...".
+  Su Windows la finestra nera non resta piu' in primo piano: si mette da sola
+  nella barra in basso, ridotta a icona. Serve solo a tenere acceso il
+  programma: per spegnerlo, chiudila.
+  La prima volta sul desktop compare l'icona "Cercaveicoli": da li' in poi
+  basta un doppio clic su quella. Se la cancelli non viene rimessa.
+
+  Prima di avviare questa versione chiudi le finestre nere e le schede delle
+  versioni precedenti. Se ne dimentichi una non succede nulla: la nuova se ne
+  accorge e te lo scrive.
+
+SI AGGIORNA DA SOLO
+  Questa e' l'ultima cartella da installare a mano. A ogni avvio il programma
+  chiede a un indirizzo fisso se c'e' una versione nuova:
+     https://github.com/Marco112344/cercaveicoli
+  Se c'e', la scarica in una cartella a parte, controlla che i file siano
+  interi, la prova avviandola a vuoto e solo allora la mette al posto della
+  vecchia e si riavvia. Ci vogliono pochi secondi: la pagina lo scrive e poi
+  si ricarica da sola con la riga "Programma aggiornato da solo alla versione".
+  Se manca internet o qualcosa non torna, resta la versione di prima e il
+  programma funziona lo stesso. I file della versione precedente restano
+  nella cartella "_precedente".
+  Se parte una ricerca prima che l'aggiornamento sia pronto, l'installazione
+  aspetta il prossimo avvio (oppure premi "Installa adesso" nell'avviso).
+  In "Opzioni" si puo' spegnere ("Aggiorna il programma da solo") e c'e' il
+  tasto "Cerca aggiornamenti adesso".
+  Per mettere il programma su un altro PC: scarica lo zip sempre aggiornato da
+     https://github.com/Marco112344/cercaveicoli/raw/main/Cercaveicoli.zip
+  estrailo e fai doppio clic su Avvia.bat.
+  Da sapere: l'aggiornamento arriva dall'account GitHub "Marco112344". Chi ha
+  la password di quell'account puo' cambiare il programma su tutti i PC:
+  tienila al sicuro e attiva la verifica in due passaggi su GitHub.
+
+LE FOTO DEGLI ANNUNCI
+  In tabella ogni annuncio ha la sua foto piccola. Passandoci sopra con il
+  mouse si ingrandisce; con un clic si apre grande, e se il sito da' piu' foto
+  gia' nella pagina dei risultati si scorrono con le frecce (Esc per chiudere).
+  Le foto le carica il browser direttamente dal sito dell'annuncio: il
+  programma non le copia e non le conserva. "senza foto in elenco" vuol dire
+  che quel sito, nella pagina dei risultati, la foto non la mette (per
+  esempio Renew); "foto non disponibile" che il sito non l'ha lasciata
+  caricare. Si possono togliere in "Opzioni".
+
+COME SI USA: UN SOLO TASTO
+  Scrivi l'auto in una riga e premi Cerca (o Invio). Per esempio:
+       BMW 320d touring dal 2019 max 25000 euro sotto 120000 km automatico
+  Sotto la casella compare "Ho capito: ..." con il modo in cui la richiesta
+  e' stata interpretata. Il programma legge i siti e mette nella tabella solo
+  gli annunci che corrispondono, controllati uno per uno.
+
+  Che cosa capisce:
+    - marca e modello, anche con piccoli errori di battitura
+    - anno: "2019" (solo quell'anno), "dal 2019", "2019-2021"
+    - prezzo: "max 25000 euro", "da 15000 a 20000 euro"
+    - km: "sotto 120000 km", "da 20000 a 90000 km"
+    - cambio: automatico (anche dsg, tiptronic, s tronic) o manuale
+    - alimentazione: diesel, benzina, ibrida, elettrica, gpl, metano
+    - potenza: "245 cv" (circa), "almeno 150 cv", "max 200 cv", "110 kw"
+    - carrozzeria: sw / station wagon, berlina, cabrio
+    - trazione: "4x4", "integrale", "quattro", "xdrive", "4matic"
+    - colore: nero, bianco, grigio, argento, blu, rosso...
+    - dotazioni: tetto panoramico, pelle, navi, gancio traino, sedili
+      riscaldati, head-up, carplay, telecamera, led, xeno, keyless...
+    - venditore: "solo concessionari", "no privati", "solo privati"
+    - "iva esposta": solo annunci con IVA detraibile
+    - "unico proprietario", "7 posti", "5 porte"
+    - paesi: "solo germania", "francia e belgio"
+    - parole da escludere: "no tcr", "senza clubsport"
+    - le auto incidentate o con danni dichiarati sono escluse; per vederle
+      scrivi "anche incidentate" (oppure "incidentata" per avere solo quelle)
+  Se vuoi correggere un filtro a mano, apri "Correggi i filtri a mano".
+
+COME VENGONO CONTROLLATI GLI ANNUNCI
+  Un dato vale solo se l'annuncio lo dichiara (campo del sito, etichetta o
+  sigla nel titolo). Nulla viene dedotto dal testo libero.
+    - Un annuncio che non corrisponde viene scartato.
+    - Un annuncio che non dichiara un dato richiesto (per esempio il cambio
+      o il tetto panoramico) non entra tra i verificati: lo vedi spuntando
+      "Mostra anche gli annunci che non indicano tutti i dati richiesti".
+
+I SITI
+  Il programma legge da solo 47 siti (erano 30). Sono nuovi, tra gli altri:
+  Spoticar e Renew in Germania, Belgio, Francia e Spagna, L'argus, auto.de,
+  Quoka, Cardoen, AutoTrends, Capcar, Elite Auto, BYmyCAR, Clicars e
+  Crestanevada. Gli indirizzi di questi siti sono stati provati aprendo le
+  pagine vere il 23/11/2026.
+  Dove il sito lo permette, prezzo, anno, chilometri e ordine per prezzo li
+  applica il sito stesso (Spoticar, ParuVendu, Carvago, AutoUncle, L'argus,
+  oltre ad AutoScout24, mobile.de, Leboncoin e La Centrale): cosi' le pagine
+  lette contengono gia' le auto giuste.
+  Di ogni sito legge fino a 10 pagine di risultati (si cambia in "Opzioni":
+  meno pagine = ricerca piu' veloce).
+  Restano come link da aprire a mano i siti che vietano la lettura ai
+  programmi, quelli che chiedono la verifica "sei un umano?" anche a un
+  browser normale e quelli che non e' stato possibile studiare: webauto.de,
+  markt.de, Gocar, Vroom.be, My Way, Ouest-France Auto, Starterre, Carizy,
+  Zoomcar, HR Motor, Canalcar, Das WeltAuto, Ooyyo.
+  Tolti dall'elenco: Autohero (non vende ai commercianti), Gebrauchtwagen.de
+  (e' lo stesso sito di 12Gebrauchtwagen) e Caradisiac (non ha piu' gli
+  annunci dell'usato).
+  Li legge in questi modi:
+  1. Direttamente, presentandosi con il proprio nome e rispettando le regole
+     che ogni sito pubblica (robots.txt). Vale per i siti che lo ammettono.
+  2. Con il browser del computer, per i siti che rispondono solo a un
+     browser (per esempio mobile.de, Leboncoin, La Centrale). Il programma
+     usa Chrome o Edge IN SOTTOFONDO, con un profilo separato dal tuo e
+     senza aprire nessuna finestra sullo schermo: visita la pagina dei
+     risultati (fino a tre pagine per sito, solo quando premi Cerca) e legge
+     gli annunci.
+     Non viene cambiato il modo in cui il browser si presenta e il programma
+     non risponde alle verifiche "sei un umano?": un sito che ne chiede una
+     resta tra quelli da aprire a mano.
+     Se vuoi vedere la finestra mentre legge (per rispondere tu a una
+     verifica), apri "Opzioni" e spunta "Mostra la finestra mentre legge".
+     Per correttezza: alcuni di questi siti scrivono nelle condizioni d'uso
+     che non vogliono strumenti automatici. Se preferisci non usare questa
+     lettura, apri "Opzioni" e togli la spunta: quei siti restano tra i link
+     da aprire a mano.
+     Serve Google Chrome o Microsoft Edge installato (su Windows Edge c'e'
+     gia').
+  3. Con Bright Data (facoltativo, a pagamento con una quota gratuita ogni
+     mese). E' un servizio che legge le pagine dai suoi server. Se in
+     "Opzioni", "Bright Data" incolli la tua chiave API e premi "Salva e
+     verifica", il programma continua a leggere gratis da solo i siti che lo
+     permettono e chiede a Bright Data quelli che non rispondono, e le pagine
+     arrivate a meta' (pochi annunci letti mentre la pagina ne dichiara
+     molti di piu'). Con Bright Data legge tante pagine per sito quante ne
+     hai scelte in "Opzioni" (di norma 10): ogni pagina e' una richiesta,
+     quindi una ricerca puo' chiederne da 20 a 100. La quota gratuita e' di
+     5.000 richieste al mese; oltre, Bright Data chiede circa 1,5 dollari
+     ogni 1.000. A fine ricerca c'e' scritto quante pagine ha chiesto.
+     Se una pagina dice da sola che non ci sono annunci per quella ricerca,
+     il programma non la fa rileggere a nessuno. Le pagine che si compongono
+     solo dentro un browser (Capcar) le legge prima il browser del computer,
+     che non costa nulla. Se Bright Data non riesce su un sito, quel sito
+     passa alla lettura con il browser.
+     La chiave viene salvata sul tuo computer, fuori dalla cartella del
+     programma (vedi "DOVE STANNO I DATI
+  Nella cartella del programma: sessione.json e, se servono,
+  siti_personali.json ed errore.txt. Il file cacert.pem e' l'elenco delle
+  autorita' che garantiscono i collegamenti sicuri (lo stesso usato da
+  Firefox): serve al programma, non cancellarlo.
+  Fuori dalla cartella, in una cartella dei dati che resta da una versione
+  all'altra (su Windows: %LOCALAPPDATA%\CercaveicoliImport; su Mac:
+  Libreria/Application Support/CercaveicoliImport): config.json, con la
+  chiave Bright Data se l'hai messa, e il profilo del browser usato per
+  leggere i siti. Si possono cancellare a programma chiuso.
+  Le cartelle delle versioni vecchie (Cercaveicoli-2.x) si possono buttare.
+  Nella cartella del programma possono comparire "_nuova" (aggiornamento in
+  arrivo), "_precedente" (i file di prima dell'ultimo aggiornamento) e
+  collegamento_creato.txt (ricorda che l'icona sul desktop e' gia' stata
+  messa): non servono a te, lasciali dove sono.

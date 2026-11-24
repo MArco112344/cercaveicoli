@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cercaveicoli Import</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: one working column. Search line, recognised filters, then sites grouped by country plate code (D, B, F, E) */
+  --bg:#eef0ec; --surface:#ffffff; --ink:#17211d; --muted:#5b6660; --line:#d3d9d2;
+  --accent:#0d5a44; --accent-ink:#ffffff; --accent-soft:#dcebe4;
+  --warn:#8f5106; --warn-soft:#f6ead6; --ok:#1d6b3a; --bad:#a3271f; --plate:#12349a;
+  --font-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121715; --surface:#1b2320; --ink:#e7ece8; --muted:#9aa8a0; --line:#2f3b36;
+    --accent:#4fc39b; --accent-ink:#06231a; --accent-soft:#1d3b31;
+    --warn:#e2a85a; --warn-soft:#3a2d18; --ok:#6fcf8f; --bad:#f08a80; --plate:#3d63d8;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121715; --surface:#1b2320; --ink:#e7ece8; --muted:#9aa8a0; --line:#2f3b36;
+  --accent:#4fc39b; --accent-ink:#06231a; --accent-soft:#1d3b31;
+  --warn:#e2a85a; --warn-soft:#3a2d18; --ok:#6fcf8f; --bad:#f08a80; --plate:#3d63d8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 56px;display:flex;flex-direction:column;gap:18px}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+h1{font-family:var(--font-display);font-weight:700;font-size:34px;line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+h2{font-family:var(--font-display);font-weight:600;font-size:23px;line-height:1.1;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:0}
+.mode{margin-left:auto;font-size:13px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.mode.on{color:var(--ok);border-color:var(--ok)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.searchrow{display:flex;gap:10px;flex-wrap:wrap}
+.searchrow input{flex:1 1 320px;min-width:0;font:inherit;font-size:17px;padding:12px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--ink)}
+button,.btn{font:inherit;font-weight:600;cursor:pointer;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:10px 16px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+button.ghost,.btn.ghost{background:transparent;color:var(--accent)}
+button.small,.btn.small{padding:5px 10px;font-size:13px}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--plate);outline-offset:2px}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
+.filters label,.settings label,.custom label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
+.filters .wide{grid-column:span 2}
+input,select{font:inherit;padding:8px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%}
+.countries{display:flex;flex-wrap:wrap;gap:8px}
+.chk{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;font-size:14px;background:var(--surface)}
+.chk input{width:auto;margin:0 0 0 6px}
+.plate{font-family:var(--font-display);font-weight:700;font-size:14px;line-height:1;min-width:26px;text-align:center;padding:4px 6px;border-radius:999px;border:2px solid var(--ink);background:var(--surface);color:var(--ink)}
+.summary{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline}
+.summary strong{font-family:var(--font-display);font-size:22px;font-weight:700}
+.group{display:flex;flex-direction:column;gap:0}
+.ghead{display:flex;align-items:center;gap:10px;padding:10px 0 8px}
+.ghead h3{font-family:var(--font-display);font-size:20px;font-weight:600;margin:0}
+.ghead .n{color:var(--muted);font-size:13px}
+.site{display:grid;grid-template-columns:minmax(150px,1.3fr) minmax(170px,1fr) auto;gap:6px 12px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.site .name{font-weight:600}
+.site .dom{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.pills{display:flex;flex-wrap:wrap;gap:5px}
+.pill{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.direct{background:var(--accent-soft);border-color:transparent;color:var(--ink)}
+.pill.google{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.pill.ok{color:var(--ok);border-color:var(--ok)}
+.pill.lock{border-style:dashed}
+.acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+@media (max-width:640px){.site{grid-template-columns:1fr}.acts{justify-content:flex-start}.filters .wide{grid-column:span 1}}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;background:var(--bg);cursor:pointer;user-select:none}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.ph,th.ph{width:96px;padding:6px 0 6px 8px;cursor:default}
+.phb{display:block;position:relative;width:96px;height:72px;padding:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--bg);cursor:zoom-in}
+.phb img{display:block;width:100%;height:100%;object-fit:cover}
+.phb .cnt{position:absolute;right:3px;bottom:3px;font-size:11px;line-height:16px;background:rgba(0,0,0,.62);color:#fff;border-radius:3px;padding:0 5px}
+.phnone{display:flex;align-items:center;justify-content:center;width:96px;height:72px;border:1px dashed var(--line);border-radius:6px;font-size:11px;color:var(--muted);text-align:center;line-height:1.25}
+#phTip{position:fixed;z-index:50;pointer-events:none;display:none;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+#phTip img{display:block;width:440px;max-width:46vw;max-height:72vh;object-fit:contain;background:var(--bg)}
+#phBox{position:fixed;inset:0;z-index:60;background:rgba(8,12,10,.88);display:none;align-items:center;justify-content:center;flex-direction:column;padding:16px}
+#phBox.on{display:flex}
+#phBox img{max-width:94vw;max-height:76vh;object-fit:contain;border-radius:6px;background:#0c100e}
+#phBox .bar{color:#fff;margin-top:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;font-size:14px;max-width:94vw}
+#phBox .bar button,#phBox .bar a{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:7px 14px;font-size:14px;cursor:pointer;text-decoration:none}
+#phBox .bar button:disabled{opacity:.35;cursor:default}
+#phBox .ttl{color:#fff;font-size:15px;margin-bottom:10px;max-width:94vw;text-align:center}
+td a{color:var(--accent);font-weight:500}
+#scanOut ul a{color:var(--accent)}
+.progress{display:flex;flex-wrap:wrap;gap:6px}
+.progress .pill.err{color:var(--bad);border-color:var(--bad)}
+.settings,.custom{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end}
+.inline{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
+.inline select{width:auto}
+#scanBody{display:flex;flex-direction:column;gap:10px}
+#scanSum:empty,#scanProg:empty{display:none}
+.understood{margin:0;font-weight:600}
+.understood span{font-weight:400;color:var(--muted)}
+.sub{font-size:12px;color:var(--muted);margin-top:2px}
+.sub .flag{color:var(--warn);font-weight:500}
+textarea{font:inherit;width:100%;padding:10px;border:2px dashed var(--accent);border-radius:8px;background:var(--surface);color:var(--ink);resize:vertical}
+ol.plain{margin:0 0 8px;padding-left:20px}
+.msg{font-size:13.5px;padding:8px 10px;border-radius:6px;background:var(--accent-soft)}
+.msg p,p.msg{margin:0}
+.msg.warn{background:var(--warn-soft);color:var(--warn)}
+.msg.bad{background:transparent;border:1px solid var(--bad);color:var(--bad)}
+.todo{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:6px;font-size:13.5px}
+.todo p{margin:0 0 8px}
+.opt{display:flex;align-items:center;gap:8px;font-weight:600}
+.opt input{width:auto;margin:0}
+#scanState:empty,#verifyBox:empty{display:none}
+#filterBox .filters{margin-top:4px}
+.todo .row{gap:6px}
+details summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:10px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+ul.plain{margin:0;padding-left:18px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Cercaveicoli Import</h1>
+    <p class="sub">Auto usate in Germania, Belgio, Francia e Spagna</p>
+    <span class="mode" id="mode">Solo link</span>
+  </header>
+
+  <p class="msg bad" id="down" hidden style="margin:0;background:var(--surface)"></p>
+  <p class="msg" id="updMsg" hidden aria-live="polite" style="margin:0;background:var(--surface)"></p>
+  <section class="card" aria-label="Ricerca">
+    <form class="searchrow" id="searchForm">
+      <input id="q" type="text" autocomplete="off" aria-label="Descrivi il veicolo" placeholder="Es. BMW 320d touring dal 2019 max 25000 euro sotto 120000 km automatico">
+      <button type="submit" id="go">Cerca</button>
+    </form>
+    <p class="understood" id="understood" aria-live="polite"></p>
+    <p class="hint">Scrivi l'auto come la diresti a voce e premi Cerca. Capisce marca e modello, anno ("dal 2019", "2019-2021"), prezzo, km, cambio, alimentazione, e anche: potenza ("245 cv", "almeno 150 cv"), "4x4", colore, "iva esposta", "solo concessionari" o "no privati", "sw", dotazioni ("tetto panoramico", "pelle", "navi", "gancio traino"), "unico proprietario", "7 posti", "solo germania", parole da escludere ("no tcr"). Le auto incidentate sono escluse, a meno che tu non scriva "anche incidentate".</p>
+    <details id="filterBox">
+      <summary>Correggi i filtri a mano</summary>
+      <div class="filters" id="filters">
+        <label>Marca<select id="f_make"></select></label>
+        <label class="wide">Modello e parole chiave<input id="f_words" type="text" autocomplete="off"></label>
+        <label>Prezzo da (€)<input id="f_pmin" type="number" min="0" step="500" inputmode="numeric"></label>
+        <label>Prezzo fino a (€)<input id="f_pmax" type="number" min="0" step="500" inputmode="numeric"></label>
+        <label>Anno dal<input id="f_ymin" type="number" min="1980" max="2035" inputmode="numeric"></label>
+        <label>Anno fino al<input id="f_ymax" type="number" min="1980" max="2035" inputmode="numeric"></label>
+        <label>Km da<input id="f_kmin" type="number" min="0" step="5000" inputmode="numeric"></label>
+        <label>Km fino a<input id="f_km" type="number" min="0" step="5000" inputmode="numeric"></label>
+        <label>Potenza da (CV)<input id="f_pwmin" type="number" min="0" step="5" inputmode="numeric"></label>
+        <label>Potenza fino a (CV)<input id="f_pwmax" type="number" min="0" step="5" inputmode="numeric"></label>
+        <label>Alimentazione<select id="f_fuel"><option value="">Tutte</option><option value="D">Diesel</option><option value="B">Benzina</option><option value="H">Ibrida</option><option value="E">Elettrica</option><option value="L">GPL</option><option value="C">Metano</option></select></label>
+        <label>Cambio<select id="f_gear"><option value="">Tutti</option><option value="A">Automatico</option><option value="M">Manuale</option></select></label>
+        <label>Carrozzeria<select id="f_body"><option value="">Tutte</option><option value="SW">Station wagon</option><option value="BE">Berlina</option><option value="CA">Cabrio</option></select></label>
+        <label>Trazione<select id="f_drive"><option value="">Tutte</option><option value="4">Solo 4x4</option></select></label>
+        <label>Colore<select id="f_color"></select></label>
+        <label>Venditore<select id="f_seller"><option value="">Tutti</option><option value="D">Solo concessionari</option><option value="P">Solo privati</option></select></label>
+        <label>IVA<select id="f_vat"><option value="">Indifferente</option><option value="1">Solo IVA esposta</option></select></label>
+        <label>Incidentate<select id="f_dmg"><option value="no">Escluse</option><option value="yes">Comprese</option><option value="only">Solo incidentate</option></select></label>
+      </div>
+      <div class="countries" id="countries" role="group" aria-label="Paesi" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px"><button type="button" id="goFilters">Cerca con questi filtri</button></div>
+    </details>
+  </section>
+
+  <section class="card" id="scanCard" aria-label="Annunci trovati">
+    <h2>Annunci trovati</h2>
+    <div id="scanBody"></div>
+  </section>
+
+  <section class="card" aria-label="Link per ogni sito">
+    <details id="linksBox">
+      <summary id="linksSum">Apri i siti a mano</summary>
+      <div class="summary" id="summary"></div>
+      <div id="groups"></div>
+    </details>
+  </section>
+
+  <section class="card" aria-label="Siti personalizzati">
+    <details id="customBox">
+      <summary>Aggiungi un tuo sito</summary>
+      <p class="hint">Incolla l'indirizzo della pagina di ricerca del sito e metti <code>{q}</code> dove vanno le parole cercate, per esempio <code>https://www.esempio.de/suche?text={q}</code>. Se scrivi solo il dominio (<code>esempio.de</code>), la ricerca passa da Google.</p>
+      <form class="custom" id="customForm">
+        <label>Nome<input id="c_name" type="text" required></label>
+        <label>Paese<select id="c_country"><option value="DE">Germania</option><option value="BE">Belgio</option><option value="FR">Francia</option><option value="ES">Spagna</option><option value="EU">Tutta Europa</option></select></label>
+        <label>Indirizzo o dominio<input id="c_url" type="text" required></label>
+        <button type="submit">Aggiungi</button>
+      </form>
+      <div id="customList" style="margin-top:10px"></div>
+    </details>
+  </section>
+</div>
+<!--CV_LOCAL-->
+<script id="core">
+/* ===== Logica di ricerca: nessun accesso alla pagina, provabile da sola ===== */
+var CV = (function(){
+  // [nome, alias, id mobile.de, nome La Centrale]
+  var RAW = [
+    ['Abarth',['abarth'],140],['Alfa Romeo',['alfa romeo','alfa'],900],['Alpine',['alpine'],null],
+    ['Aston Martin',['aston martin'],1700],['Audi',['audi'],1900],['Bentley',['bentley'],3100],
+    ['BMW',['bmw'],3500],['BYD',['byd'],null],['Chevrolet',['chevrolet'],5600],['Chrysler',['chrysler'],5700],
+    ['Citroen',['citroen'],5900],['Cupra',['cupra'],null],['Dacia',['dacia'],6600],['Dodge',['dodge'],7700],
+    ['DS Automobiles',['ds automobiles','ds'],null,'DS'],['Ferrari',['ferrari'],8600],['Fiat',['fiat'],8800],
+    ['Ford',['ford'],9000],['Honda',['honda'],11000],['Hyundai',['hyundai'],11600],['Infiniti',['infiniti'],null],
+    ['Isuzu',['isuzu'],null],['Jaguar',['jaguar'],12400],['Jeep',['jeep'],12600],['Kia',['kia'],13200],
+    ['Lamborghini',['lamborghini'],14400],['Lancia',['lancia'],14600],['Land Rover',['land rover','landrover'],14800],
+    ['Lexus',['lexus'],15200],['Lotus',['lotus'],null],['Maserati',['maserati'],16600],['Mazda',['mazda'],16800],
+    ['McLaren',['mclaren'],null],['Mercedes-Benz',['mercedes-benz','mercedes benz','mercedes','benz'],17200,'MERCEDES'],
+    ['MG',['mg'],null],['MINI',['mini'],17500],['Mitsubishi',['mitsubishi'],17700],['Nissan',['nissan'],18700],
+    ['Opel',['opel'],19000],['Peugeot',['peugeot'],19300],['Polestar',['polestar'],null],['Porsche',['porsche'],20100],
+    ['Renault',['renault'],20700],['Rolls-Royce',['rolls-royce','rolls royce'],null],['Saab',['saab'],21800],
+    ['Seat',['seat'],22500],['Skoda',['skoda'],22900],['smart',['smart'],23000],['SsangYong',['ssangyong'],null],
+    ['Subaru',['subaru'],23500],['Suzuki',['suzuki'],23600],['Tesla',['tesla'],135],['Toyota',['toyota'],24100],
+    ['Volkswagen',['volkswagen','vw'],25200],['Volvo',['volvo'],25100]
+  ];
+  var MAKES = RAW.map(function(r){
+    return {n:r[0], a:r[1], mob:r[2]||null, lc:(r[3]||r[0]).toUpperCase(), slug:r[0].toLowerCase().replace(/\s+/g,'-')};
+  });
+  var enc = encodeURIComponent;
+  function stripAcc(s){ return String(s).normalize('NFD').replace(/[̀-ͯ]/g,''); }
+  function slug(s){ return stripAcc(String(s).toLowerCase()).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+  function toN(s){
+    s = String(s).toLowerCase().replace(/\s/g,'');
+    if(/k$|mila$/.test(s)) return Math.round(parseFloat(s.replace(/k$|mila$/,'').replace(',','.'))*1000);
+    return parseInt(s.replace(/[.,]\d+$/,''),10);
+  }
+  function findMake(name){
+    if(!name) return null;
+    var k = stripAcc(String(name).toLowerCase());
+    for(var i=0;i<MAKES.length;i++){ if(MAKES[i].n.toLowerCase()===k || MAKES[i].a.indexOf(k)>=0) return MAKES[i]; }
+    return null;
+  }
+
+  var N = '(\\d+(?:[.,]\\d+)?\\s?(?:k|mila)\\b|\\d+)';
+  var Y = '((?:19[89]|20[0-3])\\d)';
+  var EUR = '(?:euro|eur)\\b';
+  var UPTO = '(?:max|massimo|fino a|sotto i|sotto|meno di|entro i|entro|<|budget|prezzo max|prezzo)';
+  var FROM = '(?:min|minimo|almeno|oltre|sopra i|sopra|piu di|>)';
+  var STOP = ['max','massimo','min','minimo','fino','a','al','ai','dal','da','di','del','sotto','sopra','meno','piu','entro','dopo','prima',
+    'euro','eur','km','chilometri','anno','anni','prezzo','budget','con','e','il','la','lo','i','le','un','una','circa','tra','in','per',
+    'auto','macchina','usata','usato','cerco','cerca','immatricolata','immatricolato','partire','cambio','alimentazione',
+    'solo','anche','possibilmente','colore','interni','potenza','venditore','trazione','optional','full','accessoriata','accessoriato','bella','bello',
+    'ottima','ottime','ottimo','condizioni','perfetta','perfetto','tagliandata','tagliandato','tagliandi','garanzia','pochi','poco','chilometraggio','basso','bassi',
+    'vorrei','voglio','cerchiamo','trovami','trova','cercami','qualsiasi','qualunque','versione','modello','marca','massimi','minimi','nuova','nuovo','che','sia','abbia','oppure','della','dei','delle','degli','serve','servono','no','non','senza','escludi','escluso','esclusa','esclusi','escluse','tranne','niente',
+    'cv','kw','ps','hp','cavalli','posti','porte','privati','privato','concessionari','concessionario','proprietario','gradi'];
+  // in ordine di precedenza: "ibrida benzina" e' un'ibrida, "benzina gpl" e' a GPL
+  var FUELS = [['H','(?:mild[- ]?hybrid|full[- ]?hybrid|plug[- ]?in[- ]?hybrid|plug[- ]?in|plugin|ibrida|ibrido|ibride|hybrid|hybride|hibrido|phev|mhev)'],
+    ['E','(?:elettrica|elettrico|elettriche|electric|electrique|electrico|elektro)'],['L','(?:gpl|lpg)'],['C','(?:metano|cng)'],
+    ['D','(?:diesel|gasolio)'],['B','(?:benzina|benzin|petrol|essence|gasolina)']];
+  // carrozzeria: "sw" e "station wagon" valgono per Avant, Touring, Variant, Combi... che ogni marca chiama a modo suo
+  var BODIES = [['SW','(?:sw|station ?wagon|stationwagon|wagon|familiare|giardinetta)'],['CA','(?:cabrio|cabriolet|decappottabile|convertibile)'],['BE','(?:berlina|sedan)']];
+  var BODY_NAMES = {SW:'station wagon', CA:'cabrio', BE:'berlina'};
+  // colori: nome usato nel programma -> come lo scrive chi cerca
+  var COLORS = [['nero','(?:nero|nera|neri|nere|schwarz|black(?!\\s+(?:edition|line|pack|paket|style|optic)))'],['bianco','(?:bianco|bianca|bianchi|bianche|weiss|white(?!\\s+(?:edition|line|pack)))'],
+    ['grigio','(?:grigio|grigia|grigi|grigie|grau|grey|gray|antracite)'],['argento','(?:argento|argentata|argentato|silver(?!\\s+(?:edition|line|pack)))'],
+    ['blu','(?:blu|azzurro|azzurra)'],['rosso','(?:rosso|rossa|rossi|rosse)'],['verde','(?:verde|verdi)'],['giallo','(?:giallo|gialla)'],['marrone','(?:marrone)'],
+    ['beige','(?:beige)'],['arancione','(?:arancione|arancio)'],['bronzo','(?:bronzo)'],['lilla','(?:lilla|viola)']];
+  var AS24_COLOR = {beige:1, blu:2, marrone:3, bronzo:4, giallo:5, grigio:6, verde:7, rosso:10, nero:11, argento:12, lilla:13, bianco:14, arancione:15, oro:16};
+  // dotazioni: [chiave, nome, come si scrive, codice del filtro di AutoScout24 se ne ha uno solo e sicuro]
+  var EQUIP = [
+    ['cam360','telecamera 360','(?:(?:tele)?camera\\s+(?:a\\s+)?360(?:\\s+gradi)?|360\\s+gradi)',187],
+    ['tetto','tetto panoramico','(?:tetto\\s+panoramico|tetto\\s+pano|tetto\\s+in\\s+vetro|panoramico|panorama|pano)',50],
+    ['apribile','tetto apribile','(?:tetto\\s+apribile|tettuccio\\s+apribile|tettuccio|apribile)',4],
+    ['tetto','tetto panoramico','(?:tetto)',50],
+    ['pelle','interni in pelle','(?:interni\\s+in\\s+pelle|sedili\\s+in\\s+pelle|in\\s+pelle|pelle|leder|leather)',6],
+    ['navi','navigatore','(?:navigatore\\s+satellitare|navigatore|navigazione|navi|gps)',23],
+    ['gancio','gancio traino','(?:gancio\\s+(?:di\\s+)?traino|gancio|ahk)',20],
+    ['sedilirisc','sedili riscaldati','(?:sedili\\s+riscaldat[ie]|sedili\\s+riscaldabili|shz)',34],
+    ['hud','head-up display','(?:head[- ]?up(?:\\s+display)?|hud)',123],
+    ['acc','cruise control adattivo','(?:cruise\\s+(?:control\\s+)?adattivo|acc)',133],
+    ['carplay','Apple CarPlay','(?:apple\\s+carplay|carplay|car\\s+play)',221],
+    ['android','Android Auto','(?:android\\s+auto)',222],
+    ['camera','telecamera','(?:retrocamera|telecamera\\s+posteriore|telecamera|camera\\s+posteriore)',130],
+    ['xenon','fari xeno','(?:fari\\s+(?:allo\\s+)?xeno[n]?|bi-?xenon|xenon|xeno)',39],
+    ['led','fari LED','(?:fari\\s+(?:full\\s+)?led|full\\s+led|matrix\\s+led|led)',0],
+    ['clima','clima automatico','(?:clima(?:tizzatore)?\\s+automatico|clima\\s+bizona|bizona)',0],
+    ['portellone','portellone elettrico','(?:portellone\\s+elettrico)',139],
+    ['sedilisport','sedili sportivi','(?:sedili\\s+sportivi)',117],
+    ['volante','volante riscaldato','(?:volante\\s+riscaldat[oi])',136],
+    ['pneumatiche','sospensioni pneumatiche','(?:sospensioni\\s+pneumatiche|sospensioni\\s+ad\\s+aria|airmatic)',144],
+    ['webasto','riscaldamento ausiliario','(?:webasto|riscaldamento\\s+(?:ausiliario|supplementare)|standheizung)',52],
+    ['keyless','apertura senza chiave','(?:keyless(?:\\s+(?:go|entry))?|senza\\s+chiave)',153],
+    ['oscurati','vetri oscurati','(?:vetri\\s+(?:oscurati|scuri|privacy))',54],
+    ['ventilati','sedili ventilati','(?:sedili\\s+ventilati)',154],
+    ['sensori','sensori di parcheggio','(?:sensori\\s+(?:di\\s+)?parcheggio|pdc)',0],
+    ['cockpit','strumentazione digitale','(?:virtual\\s+cockpit|cockpit\\s+digitale|digital\\s+cockpit)',224]];
+  var EQUIP_NAME = {}, EQUIP_AS24 = {};
+  EQUIP.forEach(function(e){ EQUIP_NAME[e[0]] = e[1]; if(e[3]) EQUIP_AS24[e[0]] = e[3]; });
+  var COUNTRY_WORDS = [['DE','(?:germania|tedesc[aohe]+|deutschland)'],['BE','(?:belgio|belg[aihe]+)'],['FR','(?:francia|frances[ei])'],['ES','(?:spagna|spagnol[aoie])']];
+  var NEG = '(?:no|non|senza|escludi|escluso|esclusa|esclusi|escluse|tranne|niente)';
+  var GEAR_A = '(?:automatico|automatica|automatici|automatiche|automatic|automatik|automatique|automatizzato|autom|aut|dsg|tiptronic|steptronic|s[- ]?tronic|pdk|cvt)';
+  var GEAR_M = '(?:manuale|manuali|manual|manuel|manuelle|schaltgetriebe|schalter)';
+  // errori di battitura frequenti nei nomi delle marche
+  var TYPOS = {wolkswagen:'volkswagen', volksvagen:'volkswagen', wolksvagen:'volkswagen', wv:'vw', vv:'vw', mercedez:'mercedes', merzedes:'mercedes', bwm:'bmw', bmv:'bmw',
+    audy:'audi', audi:'audi', porche:'porsche', porshe:'porsche', pegeot:'peugeot', peugot:'peugeot', pegeout:'peugeot', pejo:'peugeot', reno:'renault', renaut:'renault',
+    citroen:'citroen', citren:'citroen', hunday:'hyundai', hyunday:'hyundai', huyndai:'hyundai', hiundai:'hyundai', toiota:'toyota', nisan:'nissan', scoda:'skoda',
+    opell:'opel', fiatt:'fiat', sit:'seat', lamborgini:'lamborghini', mitsubischi:'mitsubishi', mitsubisci:'mitsubishi', suzuky:'suzuki', wolvo:'volvo', iunday:'hyundai'};
+  var NO_FIX = ['alpina','supra','sport','style','start','extra','punti','prima','nuova','nuovo','bella','tetto','pelle','navi','porte','posti','unico','garanzia'];
+  // distanza tra due parole (una lettera sbagliata, mancante, in piu' o scambiata vale 1)
+  function dist(a, b, max){
+    if(Math.abs(a.length-b.length)>max) return max+1;
+    var prev2 = null, prev = [], cur, i, j;
+    for(j=0;j<=b.length;j++) prev[j] = j;
+    for(i=1;i<=a.length;i++){
+      cur = [i];
+      for(j=1;j<=b.length;j++){
+        var cost = a[i-1]===b[j-1] ? 0 : 1;
+        cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost);
+        if(i>1 && j>1 && a[i-1]===b[j-2] && a[i-2]===b[j-1]) cur[j] = Math.min(cur[j], prev2[j-2]+1);
+      }
+      prev2 = prev; prev = cur;
+    }
+    return prev[b.length];
+  }
+  function nearest(w, list){
+    var best = null, bd = 9, tie = false, max = w.length>=8 ? 2 : 1;
+    list.forEach(function(k){
+      if(k.length<5 || Math.abs(k.length-w.length)>max) return;
+      var d = dist(w, k, max);
+      if(d<bd){ bd = d; best = k; tie = false; } else if(d===bd && k!==best) tie = true;
+    });
+    return (best && bd<=max && !tie) ? best : null;
+  }
+  // numeri che sono nomi di modello e non anni o prezzi
+  var NUMERIC_MODELS = {Peugeot:[1007,2008,3008,4007,4008,5008], Dodge:[1500,2500,3500], Saab:[9000], Volvo:[1800]};
+  // modello -> marca, per chi scrive solo "golf gti"
+  var MODEL_MAKE = {golf:'Volkswagen', polo:'Volkswagen', passat:'Volkswagen', tiguan:'Volkswagen', touran:'Volkswagen', 't-roc':'Volkswagen', troc:'Volkswagen',
+    't-cross':'Volkswagen', arteon:'Volkswagen', touareg:'Volkswagen', caddy:'Volkswagen', scirocco:'Volkswagen',
+    panda:'Fiat', punto:'Fiat', tipo:'Fiat', '500x':'Fiat', '500l':'Fiat',
+    clio:'Renault', megane:'Renault', captur:'Renault', kadjar:'Renault', scenic:'Renault', twingo:'Renault', arkana:'Renault', austral:'Renault',
+    corsa:'Opel', astra:'Opel', mokka:'Opel', insignia:'Opel', crossland:'Opel', grandland:'Opel',
+    fiesta:'Ford', focus:'Ford', kuga:'Ford', puma:'Ford', mondeo:'Ford', smax:'Ford', cmax:'Ford', bmax:'Ford', mustang:'Ford', ecosport:'Ford',
+    a1:'Audi', a3:'Audi', a4:'Audi', a5:'Audi', a6:'Audi', a7:'Audi', a8:'Audi', q2:'Audi', q3:'Audi', q5:'Audi', q7:'Audi', q8:'Audi', tt:'Audi', 'e-tron':'Audi',
+    x1:'BMW', x2:'BMW', x3:'BMW', x4:'BMW', x5:'BMW', x6:'BMW', x7:'BMW', z4:'BMW', i3:'BMW', i4:'BMW', ix:'BMW',
+    gla:'Mercedes-Benz', glb:'Mercedes-Benz', glc:'Mercedes-Benz', gle:'Mercedes-Benz', gls:'Mercedes-Benz', cla:'Mercedes-Benz', cls:'Mercedes-Benz',
+    yaris:'Toyota', corolla:'Toyota', supra:'Toyota', 'c-hr':'Toyota', chr:'Toyota', rav4:'Toyota', aygo:'Toyota', prius:'Toyota',
+    octavia:'Skoda', fabia:'Skoda', superb:'Skoda', kodiaq:'Skoda', karoq:'Skoda', kamiq:'Skoda', scala:'Skoda', enyaq:'Skoda',
+    leon:'Seat', ibiza:'Seat', ateca:'Seat', arona:'Seat', tarraco:'Seat', formentor:'Cupra', born:'Cupra',
+    qashqai:'Nissan', juke:'Nissan', micra:'Nissan', 'x-trail':'Nissan', leaf:'Nissan', duster:'Dacia', sandero:'Dacia', jogger:'Dacia',
+    i10:'Hyundai', i20:'Hyundai', i30:'Hyundai', tucson:'Hyundai', kona:'Hyundai', ioniq:'Hyundai',
+    sportage:'Kia', ceed:'Kia', picanto:'Kia', niro:'Kia', stonic:'Kia', sorento:'Kia',
+    cayenne:'Porsche', macan:'Porsche', panamera:'Porsche', taycan:'Porsche', boxster:'Porsche', cayman:'Porsche', '911':'Porsche',
+    evoque:'Land Rover', velar:'Land Rover', defender:'Land Rover', discovery:'Land Rover', freelander:'Land Rover',
+    giulia:'Alfa Romeo', stelvio:'Alfa Romeo', giulietta:'Alfa Romeo', tonale:'Alfa Romeo', mito:'Alfa Romeo',
+    c1:'Citroen', c3:'Citroen', c4:'Citroen', c5:'Citroen', berlingo:'Citroen',
+    '108':'Peugeot', '206':'Peugeot', '207':'Peugeot', '208':'Peugeot', '308':'Peugeot', '508':'Peugeot', '2008':'Peugeot', '3008':'Peugeot', '5008':'Peugeot',
+    xc40:'Volvo', xc60:'Volvo', xc90:'Volvo', v40:'Volvo', v60:'Volvo', v90:'Volvo', s60:'Volvo', s90:'Volvo',
+    cooper:'MINI', countryman:'MINI', clubman:'MINI', compass:'Jeep', renegade:'Jeep', wrangler:'Jeep', cherokee:'Jeep', avenger:'Jeep',
+    fortwo:'smart', forfour:'smart', 'mx-5':'Mazda', mx5:'Mazda', 'cx-5':'Mazda', cx5:'Mazda', 'cx-30':'Mazda', cx30:'Mazda', 'cx-3':'Mazda',
+    swift:'Suzuki', vitara:'Suzuki', jimny:'Suzuki', ignis:'Suzuki', civic:'Honda', jazz:'Honda', 'cr-v':'Honda', 'hr-v':'Honda',
+    ypsilon:'Lancia', outlander:'Mitsubishi', asx:'Mitsubishi', levante:'Maserati', ghibli:'Maserati', 'f-pace':'Jaguar', 'e-pace':'Jaguar',
+    forester:'Subaru', impreza:'Subaru', classe:'Mercedes-Benz', serie:'BMW'};
+  // modelli di due parole che dicono gia' la marca; le parole restano nel modello
+  var PAIR_MAKE = {'range rover':'Land Rover', 'land cruiser':'Toyota', 'santa fe':'Hyundai', 'grand cherokee':'Jeep', 'model 3':'Tesla', 'model y':'Tesla', 'model s':'Tesla', 'model x':'Tesla'};
+  var LETTER_AFTER = ['classe','klasse','class','clase','serie','model'];
+
+  function parseQuery(text, nowYear){
+    nowYear = nowYear || new Date().getFullYear();
+    var o = {make:null, makeInferred:false, words:[], priceMin:null, priceMax:null, yearMin:null, yearMax:null, kmMin:null, kmMax:null, fuel:'', gear:'', body:'',
+      powerMin:null, powerMax:null, powerAbout:null, seller:'', vat:false, damaged:'no', drive:'', color:'', eq:[], owners1:false, seatsMin:null, doors:null, excl:[], countries:[], ignored:[], fixed:[]};
+    var t = ' ' + stripAcc(String(text||'').toLowerCase()).replace(/€/g,' euro ').replace(/[;,]+(?=\s|$)/g,' ').replace(/\s+/g,' ') + ' ';
+    t = t.replace(/\b(mazda)(\d)\b/g, '$1 $2');
+    t = t.replace(/[a-z]+/g, function(w){ if(TYPOS[w] && TYPOS[w]!==w){ o.fixed.push(w+' > '+TYPOS[w]); return TYPOS[w]; } return w; });
+    // "km 0": auto immatricolate ma mai usate
+    if(/\b(?:km\s?(?:0|zero)|chilometri zero)\b/.test(t)){ o.kmMax = 100; t = t.replace(/\b(?:km\s?(?:0|zero)|chilometri zero)\b/g, ' '); }
+    // S-Max, C-Max, B-Max: "max" qui fa parte del nome
+    t = t.replace(/(\s)([a-z])[- ]max(?=\s)/g, '$1$2max');
+    // migliaia con il punto: 20.000 -> 20000
+    t = t.replace(/(?<![\d.,])(\d{1,3}(?:\.\d{3})+)(?!\d)/g, function(m){ return m.replace(/\./g,''); });
+    // migliaia con lo spazio davanti a km o euro: "320 100 000 km" -> "320 100000 km"
+    t = t.replace(/(?<!\d)((?:\d{1,3} )+\d{3})(?=\s*(?:km|chilometri|euro|eur)\b)/g, function(m){
+      var g = m.split(' '), i = g.length-1, acc = g[i];
+      while(i>0){ var cand = g[i-1]+acc; if(parseInt(cand,10)>2000000) break; acc = cand; i--; if(g[i].length<3) break; }
+      return (i>0 ? g.slice(0,i).join(' ')+' ' : '') + acc;
+    });
+    function take(re, fn){ var m, guard=0; while((m = re.exec(t)) && guard++<20){ fn(m); t = t.slice(0,m.index)+' '+t.slice(m.index+m[0].length); re.lastIndex = 0; } }
+    function has(re){ var hit = false; take(re, function(){ hit = true; }); return hit; }
+    // venditore, IVA, danni: prima le forme con "no" e "senza"
+    if(has(new RegExp('\\b'+NEG+'\\s+(?:i\\s+|da\\s+)?privat[oi]\\b'))) o.seller = 'D';
+    if(has(new RegExp('\\b'+NEG+'\\s+(?:i\\s+|le\\s+|da\\s+)?(?:concessionar[a-z]+|rivenditor[ei]|commerciant[ei]|dealer)\\b'))) o.seller = 'P';
+    if(has(/\b(?:solo\s+)?(?:da\s+|di\s+)?(?:concessionar[a-z]+|rivenditor[ei]|commerciant[ei]|dealer|handler|haendler)\b/) && !o.seller) o.seller = 'D';
+    if(has(/\b(?:solo\s+)?(?:da\s+|di\s+)?(?:privat[oia]|particulier|particular)\b/) && !o.seller) o.seller = 'P';
+    has(new RegExp('\\b'+NEG+'\\s+iva(?:\\s+(?:esposta|deducibile|detraibile))?\\b'));  // "senza iva": nessun filtro sull'IVA
+    if(has(/\b(?:con\s+)?iva\s+(?:esposta|esponibile|deducibile|detraibile|scaricabile|recuperabile|scorporabile|in\s+fattura)\b|\bmwst\.?(?:\s+ausweisbar)?\b|\btva\s+recuperable\b|\bfatturabil[ei]\b|\bcon\s+iva\b|\biva\b/)) o.vat = true;
+    var DMG = '(?:incidentat[aei]|sinistrat[aei]|danneggiat[aei]|unfallwagen|non\\s+marciant[ei]|da\\s+riparare|per\\s+ricambi)';
+    has(new RegExp('\\b'+NEG+'\\s+(?:'+DMG+'|incidenti|danni|sinistri)\\b'));  // e' gia' la regola: le incidentate sono escluse
+    if(has(new RegExp('\\banche\\s+(?:le\\s+)?'+DMG+'\\b'))) o.damaged = 'yes';
+    if(has(new RegExp('\\b(?:solo\\s+)?'+DMG+'\\b'))) o.damaged = 'only';
+    // proprietari, posti, porte, classe Euro
+    if(has(/\b(?:unic[oa]\s+proprietari[oa]|uniproprietario|un\s+solo\s+proprietario|primo\s+proprietario|prima\s+mano)\b/)) o.owners1 = true;
+    take(/\b([2-9])\s*posti\b/, function(m){ if(+m[1] >= 6) o.seatsMin = +m[1]; });
+    take(/\b([2-5])\s*(?:porte|p)\b/, function(m){ o.doors = +m[1] <= 3 ? 3 : 5; });
+    take(/\beuro\s?([3-6])\s?(?:d[- ]?temp|[a-e])?\b(?!\s*\d)/, function(m){ o.ignored.push('euro '+m[1]); });
+    // paesi: "solo germania", "in francia e belgio"
+    COUNTRY_WORDS.forEach(function(cw){ if(has(new RegExp('\\b(?:solo\\s+)?(?:in\\s+|dalla\\s+|dal\\s+|da\\s+)?'+cw[1]+'\\b'))) o.countries.push(cw[0]); });
+    // trazione integrale, comunque la chiami la marca
+    if(has(/(?<![a-z0-9])(?:trazione\s+integrale|(?:quattro|4)\s+ruote\s+motrici|4x4|4wd|awd|integrale|allrad|quattro|xdrive|4matic|4\s?motion)(?![a-z0-9])/)) o.drive = '4';
+    // dotazioni e colore
+    EQUIP.forEach(function(e){ if(has(new RegExp('(?<![a-z0-9])'+e[2]+'(?![a-z0-9])')) && o.eq.indexOf(e[0])<0) o.eq.push(e[0]); });
+    COLORS.forEach(function(c){ if(has(new RegExp('(?<![a-z0-9])(?:colore\\s+)?'+c[1]+'(?![a-z0-9])')) && !o.color) o.color = c[0]; });
+    // parole da escludere: "no tcr", "senza cabrio", "-cabrio"
+    take(new RegExp('(?:^|\\s)(?:'+NEG+'\\s+|-)([a-z][a-z0-9-]{0,20}(?:\\s+(?:line|sport|paket|pack|edition))?)(?=\\s|$)'), function(m){
+      var w = m[1];
+      if(new RegExp('^'+GEAR_A+'$').test(w)){ o.gear = 'M'; return; }
+      if(new RegExp('^'+GEAR_M+'$').test(w)){ o.gear = 'A'; return; }
+      if(STOP.indexOf(w)<0 && o.excl.indexOf(w)<0) o.excl.push(w);
+    });
+    // potenza: "150 cv" (circa), "almeno 150 cv", "max 200 cv", "da 150 a 200 cv", "110 kw"
+    var PW = '(cv|ps|hp|ch|kw|cavalli)', cvOf = function(n, u){ return Math.round(+n * (u==='kw' ? 1.35962 : 1)); };
+    take(new RegExp('(?:da\\s+|tra\\s+)?(?<![\\d.,])(\\d{2,3})\\s*(?:'+PW+'\\s*)?(?:-|–|\\ba\\b|\\be\\b)\\s*(\\d{2,3})\\s?'+PW+'\\b'), function(m){ o.powerMin = cvOf(m[1], m[4]); o.powerMax = cvOf(m[3], m[4]); });
+    take(new RegExp('(?:'+FROM+'|\\bda|\\bcon\\s+almeno)\\s*(?<![\\d.,])(\\d{2,3})\\s?'+PW+'\\b'), function(m){ o.powerMin = cvOf(m[1], m[2]); });
+    take(new RegExp('(?:max|massimo|fino a|sotto i|sotto|meno di|entro i|entro|<)\\s*(?<![\\d.,])(\\d{2,3})\\s?'+PW+'\\b'), function(m){ o.powerMax = cvOf(m[1], m[2]); });
+    take(new RegExp('(?<![\\d.,])(\\d{2,3})\\s?'+PW+'\\b(\\s*(?:\\+|in su|o piu|e oltre|minimo|minimi))?'), function(m){
+      var v = cvOf(m[1], m[2]);
+      if(m[3]){ o.powerMin = v; return; }
+      if(o.powerMin===null && o.powerMax===null){ o.powerAbout = v; o.powerMin = Math.round(v*0.96); o.powerMax = Math.round(v*1.04); }
+    });
+    // chilometri minimi e intervalli: "da 20000 km", "tra 50000 e 100000 km"
+    take(new RegExp('(?:da\\s+|tra\\s+)?(?<![\\d.,])(?!(?:19[89]|20[0-3])\\d\\b)'+N+'\\s*(?:km|chilometri)?\\s*(?:-|–|\\ba\\b|\\be\\b)\\s*'+N+'\\s*(?:km|chilometri)\\b'), function(m){
+      var a = toN(m[1]), b = toN(m[2]); o.kmMin = Math.min(a, b) || null; o.kmMax = Math.max(a, b);
+    });
+    take(new RegExp('(?:'+FROM+'|\\bda|\\bcon\\s+almeno)\\s*'+N+'\\s*(?:km|chilometri)\\b'), function(m){ o.kmMin = toN(m[1]); });
+    // chilometri
+    // due numeri attorno a "km" senza altre unita' ("max 30000 km 120000"): il piu' grande e' il chilometraggio, l'altro il prezzo
+    take(new RegExp('(?:(?:max|massimo|fino a|sotto i|sotto|meno di|entro i|entro|<)\\s*)?(?<![\\d.,])(\\d{4,7}|\\d+(?:[.,]\\d+)?\\s?(?:k|mila))\\s*(?:km|chilometri)\\s+(?!(?:19[89]|20[0-3])\\d\\b)(\\d{4,7}|\\d+(?:[.,]\\d+)?\\s?(?:k|mila)\\b)(?![\\d.,])(?!\\s*(?:km|chilometri|euro|eur)\\b)'), function(m){
+      var a = toN(m[1]), b = toN(m[2]);
+      o.kmMax = Math.max(a, b); if(Math.min(a, b) >= 1500) o.priceMax = Math.min(a, b);
+    });
+    take(new RegExp('(?:(?:max|massimo|fino a|sotto i|sotto|meno di|entro i|entro|<)\\s*)?'+N+'\\s*(?:km|chilometri)\\b'), function(m){ o.kmMax = toN(m[1]); });
+    // "km 100000", "km max 80.000": l'unita' prima del numero (non un anno)
+    take(new RegExp('\\b(?:km|chilometri)\\s*(?:max|massimo|massimi|fino a|sotto i|sotto|meno di|:)?\\s*(?!(?:19[89]|20[0-3])\\d\\b)(\\d+(?:[.,]\\d+)?\\s?(?:k|mila)\\b|\\d{4,7})(?![\\d.,])'), function(m){ o.kmMax = toN(m[1]); });
+    // prezzi con "euro"
+    take(new RegExp('(?:da\\s+|tra\\s+|prezzo\\s+)?'+N+'\\s*(?:euro|eur)?\\s*(?:-|–|\\ba\\b|\\be\\b)\\s*'+N+'\\s*'+EUR), function(m){ o.priceMin = toN(m[1]); o.priceMax = toN(m[2]); });
+    take(new RegExp('(?:'+FROM+'|\\bda)\\s*'+N+'\\s*'+EUR), function(m){ o.priceMin = toN(m[1]); });
+    take(new RegExp('(?:'+UPTO+'\\s*:?\\s*)?'+N+'\\s*'+EUR), function(m){ o.priceMax = toN(m[1]); });
+    // anni: intervallo, limite, "dal", e anno preciso ("anno 2019", "del 2019")
+    take(new RegExp('(?:\\bdal\\s+|\\bda\\s+|\\banno\\s+|\\banni\\s+)?(?<!\\d)'+Y+'\\s*(?:-|–|\\bal\\b|\\ba\\b)\\s*'+Y+'(?!\\d)'), function(m){ o.yearMin = +m[1]; o.yearMax = +m[2]; });
+    take(new RegExp('(?:fino al|fino a|entro il|entro|prima del|max anno|<=|<)\\s*'+Y+'(?!\\d)'), function(m){ o.yearMax = +m[1]; });
+    take(new RegExp('(?:a partire dal|immatricolat[ao] dal|dopo il|dopo|\\bdal|\\bda|>=|>)\\s*'+Y+'(?!\\d)'), function(m){ o.yearMin = +m[1]; });
+    take(new RegExp('(?<!\\d)'+Y+'\\s*(?:\\+|in poi|in avanti|in su|e successivi|o successivi|o piu recenti|o piu recente)'), function(m){ o.yearMin = +m[1]; });
+    take(new RegExp('(?:\\banno|\\bdel)\\s*'+Y+'(?!\\d)'), function(m){ o.yearMin = o.yearMax = +m[1]; });
+    // prezzi senza "euro" ma con una parola che li introduce
+    take(new RegExp('\\bda\\s+'+N+'\\s+(?:a|ai)\\s+'+N+'(?![\\d.])'), function(m){ var a = toN(m[1]), b = toN(m[2]); if(a>=500 && b>=1500){ o.priceMin = a; o.priceMax = b; } });
+    take(new RegExp('(?<![a-z-])('+UPTO+')\\s*:?\\s*'+N), function(m){
+      var v = toN(m[2]);
+      if(/^(max|massimo)$/.test(m[1]) && v>=2005 && v<=nowYear+1 && o.yearMax===null){ o.yearMax = v; return; }  // "max 2020" e' un anno
+      if(v>=500) o.priceMax = v;
+    });
+    take(new RegExp('(?<![a-z-])'+FROM+'\\s*:?\\s*'+N), function(m){ var v = toN(m[1]); if(v>=500) o.priceMin = v; });
+    take(/(?<![\d.])(\d{4,7})\s*(?:-|–)\s*(\d{4,7})(?![\d.])/, function(m){ o.priceMin = +m[1]; o.priceMax = +m[2]; });
+    // alimentazione e cambio
+    FUELS.forEach(function(f){ var re = new RegExp('\\b'+f[1]+'\\b','g'); if(re.test(t)){ if(!o.fuel) o.fuel = f[0]; t = t.replace(re,' '); } });
+    // cambio: anche le sigle (dsg, tiptronic, s tronic) dicono "automatico" e non devono restare tra le parole del modello
+    var ga = new RegExp('\\b'+GEAR_A+'\\b','g'), gm = new RegExp('\\b'+GEAR_M+'\\b','g');
+    if(ga.test(t)){ o.gear = 'A'; t = t.replace(ga,' '); }
+    else if(gm.test(t)){ o.gear = 'M'; t = t.replace(gm,' '); }
+    BODIES.forEach(function(b){ var re = new RegExp('\\b'+b[1]+'\\b','g'); if(re.test(t)){ if(!o.body) o.body = b[0]; t = t.replace(re,' '); } });
+    if(/\bsuv\b/.test(t)){ o.ignored.push('suv'); t = t.replace(/\bsuv\b/g,' '); }
+    // marca: l'alias più a sinistra, a parità il più lungo
+    var best = null;
+    MAKES.forEach(function(mk){ mk.a.forEach(function(al){
+      var re = new RegExp('(?<![a-z0-9])'+al.replace(/[-]/g,'[- ]')+'(?![a-z0-9])'), m = re.exec(t);
+      if(m && (!best || m.index<best.i || (m.index===best.i && m[0].length>best.l))) best = {i:m.index, l:m[0].length, mk:mk};
+    }); });
+    if(best){ o.make = best.mk; t = t.slice(0,best.i)+' '+t.slice(best.i+best.l); }
+    var toks = t.split(/\s+/).map(function(w){ return w.replace(/^[^a-z0-9]+|[^a-z0-9+]+$/g,''); }).filter(Boolean);
+    // marca o modello scritti con un errore di battitura: "mercedez", "pasat", "tigaun"
+    var mkNames = [], mdNames = Object.keys(MODEL_MAKE);
+    MAKES.forEach(function(mk){ mk.a.forEach(function(al){ if(/^[a-z]+$/.test(al)) mkNames.push(al); }); });
+    toks = toks.map(function(w){
+      if(!/^[a-z]{5,}$/.test(w) || STOP.indexOf(w)>=0 || NO_FIX.indexOf(w)>=0 || MODEL_MAKE[w] || findMake(w)) return w;
+      var fix = !o.make ? nearest(w, mkNames) : null;
+      if(fix){ o.make = findMake(fix); o.fixed.push(w+' > '+o.make.n); return ''; }
+      fix = nearest(w, mdNames);
+      if(fix && (!o.make || MODEL_MAKE[fix]===o.make.n)){ o.fixed.push(w+' > '+fix); return fix; }
+      return w;
+    }).filter(Boolean);
+    var modelTok = null;
+    if(!o.make){  // marca dedotta dal modello
+      Object.keys(PAIR_MAKE).forEach(function(k){ if(!o.make && new RegExp('(?<![a-z0-9])'+k+'(?![a-z0-9])').test(t)){ o.make = findMake(PAIR_MAKE[k]); o.makeInferred = true; } });
+      var first = toks.filter(function(w){ return STOP.indexOf(w)<0; })[0];
+      if(!o.make && first && MODEL_MAKE[first]){ o.make = findMake(MODEL_MAKE[first]); o.makeInferred = true; modelTok = first; }
+    }
+    var keep = (o.make && NUMERIC_MODELS[o.make.n]) || [], bareYear = false;
+    toks.forEach(function(w, i){
+      var prev = o.words.length ? o.words[o.words.length-1] : '';
+      if(STOP.indexOf(w)>=0){  // "classe a", "classe e", "mercedes a 180": la lettera e' il modello
+        var letter = w.length===1 && (LETTER_AFTER.indexOf(prev)>=0 || (o.make && o.make.n==='Mercedes-Benz' && /^\d{2,3}[a-z]?$/.test(toks[i+1]||'')));
+        if(!letter) return;
+      }
+      if(/^\d+$/.test(w)){
+        var v = +w;
+        if(keep.indexOf(v)>=0 || w===modelTok){ o.words.push(w); return; }
+        if(v>=1990 && v<=nowYear+1){
+          if(o.yearMin===null && o.yearMax===null){ o.yearMin = o.yearMax = v; bareYear = true; }  // "golf 2019" = anno 2019
+          else if(bareYear){ o.yearMin = Math.min(o.yearMin, v); o.yearMax = Math.max(o.yearMax, v); }
+          else o.words.push(w);
+          return;
+        }
+        if(v>=1500 && o.priceMax===null){ o.priceMax = v; return; }
+      }
+      o.words.push(w);
+    });
+    return o;
+  }
+
+  var TWO = ['serie','classe','klasse','class','clase','model','range','grand','santa','land'];
+  var ROMAN = ['i','ii','iii','iv','v','vi','vii','viii','ix','x'];
+  var SLUG_FIX = {smax:'s-max', cmax:'c-max', bmax:'b-max'};
+  function wordOut(w){ return SLUG_FIX[w] || w; }
+  function parts(c){
+    var w = (c.words||[]).map(wordOut), m1 = '', rest = [];
+    if(w.length){ var two = TWO.indexOf(w[0])>=0 && w[1]; m1 = slug(two ? w[0]+' '+w[1] : w[0]); rest = w.slice(two?2:1); }
+    return {m1:m1, rest:rest, q:((c.make?c.make.n+' ':'')+w.join(' ')).trim()};
+  }
+  // Modelli di AutoScout24 con un nome di piu' parole o con un trattino, letti dall'elenco del sito il 19/11/2026.
+  // Servono ad aprire la pagina del modello giusto: "range rover evoque", "golf gti", "cx5", "c4 picasso".
+  var AS24_MULTI = {
+    'Audi':'tt rs|rs q3|a4 allroad|a6 allroad|e-tron|rs q8|q4 e-tron|e-tron gt|q8 e-tron|sq8 e-tron|rs e-tron gt|q6 e-tron|sq6 e-tron|a6 e-tron|s6 e-tron',
+    'BMW':'x5 m|x6 m|z4 m|x4 m|x3 m|x2 m|x7 m|z3 m',
+    'Volkswagen':'new beetle|golf plus|cross golf|cross touran|polo gti|passat cc|passat variant|passat alltrack|golf variant|golf cabriolet|golf gti|golf sportsvan|t-roc|t-cross|id.3|id.4|golf gte|e-golf|id.5|tiguan allspace|id. buzz|golf r|id.7|golf gtd|t5 multivan|t6 multivan|t6.1 multivan|t7 multivan|t5 california|t6 california|t6.1 california|t5 caravelle|t6 caravelle|t6.1 caravelle|t5 transporter|t6 transporter|t6.1 transporter|grand california',
+    'Land Rover':'range rover|range rover sport|range rover evoque|discovery sport|range rover velar',
+    'Toyota':'land cruiser|land cruiser prado|c-hr|yaris cross|aygo x|corolla cross|proace city|urban cruiser|corolla verso|avensis verso',
+    'Citroen':'xsara picasso|c4 picasso|grand c4 picasso|c3 picasso|c4 aircross|c4 cactus|c3 aircross|c4 spacetourer|grand c4 spacetourer|c5 aircross|c5 x|e-c4 x|c4 x|e-c3',
+    'Peugeot':'e-208|e-2008',
+    'Renault':'grand espace|grand scenic|grand modus|megane e-tech',
+    'Fiat':'124 spider|grande punto|punto evo|500 abarth|500c abarth|595 abarth|grande panda',
+    'Ford':'focus c-max|s-max|c-max|grand c-max|b-max|tourneo connect|transit connect|tourneo courier|transit custom|tourneo custom|mustang mach-e|ranger raptor',
+    'Opel':'zafira tourer|crossland x|grandland x|zafira life|mokka x|mokka-e|combo life|corsa-e',
+    'MINI':'cooper clubman|one countryman|john cooper works|one clubman|cooper s|cooper d|cooper sd|one d|cooper cabrio|cooper d cabrio|cooper s cabrio|cooper sd cabrio|cooper d clubman|cooper s clubman|cooper sd clubman|cooper countryman|cooper d countryman|cooper s countryman|cooper sd countryman|cooper coupe|cooper s coupe|john cooper works cabrio|john cooper works clubman|one cabrio|one d clubman|one d countryman|cooper s roadster|cooper paceman|cooper s paceman|cooper d paceman|john cooper works countryman|cooper se countryman|cooper se|countryman c|countryman d|cooper c|cooper e',
+    'Hyundai':'santa fe|grand santa fe|ioniq 5|ioniq 6|genesis coupe',
+    'Kia':'e-niro',
+    'Volvo':'v40 cross country|s60 cross country|v60 cross country|v90 cross country',
+    'Jeep':'grand cherokee',
+    'Nissan':'x-trail|gt-r|e-nv200',
+    'Mazda':'mx-5|rx-8|cx-7|cx-9|cx-5|cx-3|cx-30|mx-30|cx-60|cx-80',
+    'Seat':'altea xl',
+    'Porsche':'718 spyder|718 cayman|carrera gt',
+    'Tesla':'model s|model x|model 3|model y',
+    'DS Automobiles':'ds 3|ds 4|ds 5|ds 7 crossback|ds 3 crossback|ds 4 crossback|ds 9|ds 7',
+    'Honda':'cr-v|hr-v|fr-v|cr-z|zr-v',
+    'Mercedes-Benz':'amg gt|marco polo|eqe suv|eqs suv'
+  };
+  // nomi brevi che il sito tiene sotto un nome piu' lungo, e famiglie che riuniscono tutte le varianti ("golf-tutto": Golf, Golf GTI, Golf Variant...)
+  var AS24_ALIAS = {'Land Rover':{evoque:'range-rover-evoque', velar:'range-rover-velar'}};
+  var AS24_LINES = {'Volkswagen':['polo','passat','golf','tiguan']};
+  var AMG_N = ['32','35','36','43','45','53','55','63','65'];
+  var multiCache = {};
+  function multiMap(mk){
+    if(!multiCache[mk]){
+      var m = {};
+      (AS24_MULTI[mk]||'').split('|').forEach(function(l){
+        if(!l) return;
+        var k = l.replace(/[^a-z0-9]/g,'');
+        m[k] = slug(l);
+        if(mk==='DS Automobiles') m[k.replace(/^ds/,'')] = slug(l);  // "ds 7 crossback": la marca e' gia' stata tolta dalle parole
+      });
+      multiCache[mk] = m;
+    }
+    return multiCache[mk];
+  }
+  // Restituisce il modello come lo chiama AutoScout24: "320" per 320d, "c-220" per C 220, "a-45-amg", "serie-3-tutto" per l'intera serie.
+  // base = seconda pagina da leggere: gli annunci di una Golf GTI stanno in parte sotto il modello "Golf GTI" e in parte sotto "Golf" con GTI nella versione.
+  function as24Model(c){
+    var w = (c.words||[]).map(wordOut), mk = c.make ? c.make.n : '', m, k, key;
+    if(!w.length) return parts(c);
+    if(mk==='Mercedes-Benz'){
+      var a = null;
+      if(LETTER_AFTER.indexOf(w[0])>=0 && /^[a-z]{1,3}$/.test(w[1]||'') && /^\d{2,3}[a-z]?$/.test(w[2]||'')) a = [w[1], w[2].replace(/[a-z]$/,''), 3];
+      else if((m = /^([a-z]{1,3})(\d{2,3})[a-z]*$/.exec(w[0]))) a = [m[1], m[2], 1];
+      else if(/^[a-z]{1,3}$/.test(w[0]) && /^\d{2,3}[a-z]?$/.test(w[1]||'')) a = [w[0], w[1].replace(/[a-z]$/,''), 2];
+      if(a){
+        var amg = AMG_N.indexOf(a[1])>=0 && w[a[2]]==='amg', tail = (/[a-z]$/.exec(w[a[2]-1])||[''])[0] || (/^[de]$/.test(w[a[2]]||'') ? w[a[2]] : '');
+        // "c 220 d", "c220d": la lettera finale dice il carburante (d = diesel, e = ibrida)
+        return {m1:a[0]+'-'+a[1]+((amg || AMG_N.indexOf(a[1])>=0) ? '-amg' : ''), rest:w.slice(a[2]+(amg?1:0)).filter(function(x, i){ return !(i===0 && /^[de]$/.test(x)); }),
+                fuel:{d:'D', e:'H'}[tail]||''};
+      }
+      if(LETTER_AFTER.indexOf(w[0])>=0 && /^[a-z]{1,3}$/.test(w[1]||'')) return {m1:'classe-'+w[1]+'-tutto', rest:w.slice(2)};
+    }
+    if(mk==='BMW'){
+      if(w[0]==='serie' && /^\d$/.test(w[1]||'')) return {m1:'serie-'+w[1]+'-tutto', rest:w.slice(2)};
+      // "320d": il modello del sito e' "320"; la lettera dice il carburante (d diesel, i benzina, e ibrida) e si passa come filtro
+      if((m = /^(\d{3})([die])$/.exec(w[0]))) return {m1:m[1], rest:w.slice(1), fuel:{d:'D', i:'B', e:'H'}[m[2]]};
+      if((m = /^(\d{3})[a-z]{1,2}$/.exec(w[0]))) return {m1:m[1], rest:w};
+      if(/^\d{3}$/.test(w[0]) && /^[die]$/.test(w[1]||'')) return {m1:w[0], rest:w.slice(2), fuel:{d:'D', i:'B', e:'H'}[w[1]]};
+    }
+    if((AS24_ALIAS[mk]||{})[w[0]]) return {m1:AS24_ALIAS[mk][w[0]], rest:w.slice(1)};
+    var map = multiMap(mk);
+    // prima con le parole cosi' come sono ("ioniq 5", "model 3"); poi senza numeri di generazione e cilindrate ("golf 7 gti" -> golf gti)
+    var core = [w[0]].concat(w.slice(1).filter(function(x){ return !/^\d([.,]\d)?$/.test(x) && ROMAN.indexOf(x)<0; }));
+    var tries = core.length<w.length ? [w, core] : [w];
+    for(var t=0; t<tries.length; t++){
+      var v = tries[t];
+      for(k=Math.min(4,v.length); k>=1; k--){
+        key = v.slice(0,k).join('').replace(/[^a-z0-9]/g,'');
+        if(key && map[key]){
+          if(mk==='BMW' && /m$/.test(key) && /^(sport|sportpaket|paket|performance|technik)$/.test(v[k]||'')) continue;  // "x5 m sport" e' una X5 con pacchetto M Sport, non una X5 M
+          var out = {m1:map[key], rest:v.slice(k)};
+          if(k===2 && /^[a-z]{3,}$/.test(v[0]) && /^[a-z0-9]{2,}$/.test(v[1]) && TWO.indexOf(v[0])<0) out.base = {m1:slug(v[0]), version:v[1]};
+          return out;
+        }
+      }
+    }
+    var p = parts(c);
+    if(!versionWord(p.rest) && (AS24_LINES[mk]||[]).indexOf(p.m1)>=0) return {m1:p.m1+'-tutto', rest:p.rest};
+    return p;
+  }
+  // sui siti che cercano per percorso la famiglia ha un nome suo: "320d" sta sotto serie-3, "c 220" sotto classe-c
+  function familySlug(c, cls, after){
+    var w = (c.words||[]).map(wordOut), mk = c.make ? c.make.n : '', m;
+    if(!w.length) return '';
+    if(mk==='BMW'){
+      if(w[0]==='serie' && /^\d$/.test(w[1]||'')) return 'serie-'+w[1];
+      if((m = /^([1-8])\d{2}[a-z]{0,2}$/.exec(w[0]))) return 'serie-'+m[1];
+    }
+    if(mk==='Mercedes-Benz'){
+      var fam = function(x){ return after ? x+'-'+cls : cls+'-'+x; };
+      if(LETTER_AFTER.indexOf(w[0])>=0 && /^[a-z]$/.test(w[1]||'')) return fam(w[1]);
+      if((m = /^([abcegsv])(\d{2,3})[a-z]{0,2}$/.exec(w[0]))) return fam(m[1]);
+      if(/^[abcegsv]$/.test(w[0]) && /^\d{2,3}[a-z]{0,2}$/.test(w[1]||'')) return fam(w[0]);
+    }
+    return '';
+  }
+  // parole per i siti che cercano per testo: nella lingua del sito, e senza marca quando il modello basta ("golf gti" trova anche "VW Golf GTI")
+  var KW_MAKE = {'Mercedes-Benz':{de:'mercedes', fr:'mercedes', nl:'mercedes', es:'mercedes'}, 'Volkswagen':{de:'vw'}, 'DS Automobiles':{de:'ds', fr:'ds', nl:'ds', es:'ds'}};
+  function kwQuery(c, lang, noMake){
+    var w = (c.words||[]).map(wordOut), mk = c.make ? c.make.n : '', head = [], rest = [], code;
+    if(mk==='BMW' && w[0]==='serie' && /^\d$/.test(w[1]||'')){  // "serie 1 118d": la sigla dice gia' la serie
+      code = w.slice(2).filter(function(x){ return new RegExp('^'+w[1]+'\\d{2}[a-z]{0,2}$').test(x); })[0];
+      head = [code || (lang==='de' ? w[1]+'er' : (lang==='nl' ? w[1]+' serie' : 'serie '+w[1]))];
+      rest = w.slice(2).filter(function(x){ return x!==code; });
+    } else if(mk==='Mercedes-Benz' && LETTER_AFTER.indexOf(w[0])>=0 && /^[a-z]$/.test(w[1]||'')){
+      if(/^\d{2,3}[a-z]?$/.test(w[2]||'')){ head = [w[1]+' '+w[2]]; rest = w.slice(3); }
+      else { head = [(lang==='de'||lang==='nl') ? w[1]+' klasse' : (lang==='es' ? 'clase '+w[1] : 'classe '+w[1])]; rest = w.slice(2); }
+    } else if(w.length){
+      var two = TWO.indexOf(w[0])>=0 && w[1];
+      head = two ? [w[0]+' '+w[1]] : [w[0]]; rest = w.slice(two ? 2 : 1);
+    }
+    // oltre al modello, al piu' due parole: niente cilindrate, generazioni e lettere isolate (il controllo completo si fa dopo, annuncio per annuncio)
+    var extra = rest.filter(function(x){ return x.length>=2 && !/^\d([.,]\d)?$/.test(x) && ROMAN.indexOf(x)<0; }).slice(0, 2);
+    var name = mk ? ((KW_MAKE[mk]||{})[lang] || mk) : '';
+    var plain = head.length && /^[a-z]{4,}$/.test(head[0]);
+    if(noMake) return head.concat(extra).join(' ');
+    return ((plain ? '' : name+' ')+head.concat(extra).join(' ')).trim() || name;
+  }
+  // Al sito si passano al piu' due parole di allestimento (devono comparire tutte e due nella versione dell'annuncio).
+  // Numeri di generazione e cilindrate si controllano dopo, sugli annunci; cosi' anche le parole che i venditori scrivono
+  // attaccate ad altre (BlueHDi, eTSI, xDrive), che il filtro del sito non troverebbe.
+  var ON_SITE_SKIP = ['hdi','tsi','hybrid','drive','xdrive','sdrive','tronic','boost','jet','tech','motion','matic','sport','paket','pack'];
+  function versionWord(rest){
+    var out = [];
+    for(var i=0;i<rest.length && out.length<2;i++){
+      var x = rest[i];
+      if(/^\d+([.,]\d+)?$/.test(x) || /^\d{2}[die]$/.test(x) || ROMAN.indexOf(x)>=0 || ON_SITE_SKIP.indexOf(x)>=0) continue;  // "30d" sta scritto "xDrive30d"
+      if(!out.length){ if(x.length>=2) out.push(x); }
+      else if(/^[a-z]{4,}$/.test(x)) out.push(x);
+    }
+    return out.join(' ');
+  }
+  var FUEL_NAMES = {D:'diesel', B:'benzina', H:'ibrida', E:'elettrica', L:'GPL', C:'metano'};
+  function fmtN(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+  function describe(c){
+    var p = parts(c), a = [p.q || 'qualsiasi veicolo'];
+    if(c.yearMin && c.yearMax) a.push(c.yearMin===c.yearMax ? 'anno '+c.yearMin : 'anni dal '+c.yearMin+' al '+c.yearMax);
+    else if(c.yearMin) a.push('dal '+c.yearMin);
+    else if(c.yearMax) a.push('fino al '+c.yearMax);
+    if(c.priceMin && c.priceMax) a.push('da '+fmtN(c.priceMin)+' a '+fmtN(c.priceMax)+' €');
+    else if(c.priceMax) a.push('fino a '+fmtN(c.priceMax)+' €');
+    else if(c.priceMin) a.push('da '+fmtN(c.priceMin)+' €');
+    if(c.kmMin && c.kmMax) a.push('da '+fmtN(c.kmMin)+' a '+fmtN(c.kmMax)+' km');
+    else if(c.kmMax) a.push('fino a '+fmtN(c.kmMax)+' km');
+    else if(c.kmMin) a.push('da '+fmtN(c.kmMin)+' km');
+    if(c.fuel) a.push(FUEL_NAMES[c.fuel]);
+    if(c.gear) a.push(c.gear==='A' ? 'cambio automatico' : 'cambio manuale');
+    if(c.body) a.push(BODY_NAMES[c.body]);
+    if(c.powerAbout && c.powerMin && c.powerMax) a.push('circa '+c.powerAbout+' CV');
+    else if(c.powerMin && c.powerMax) a.push('da '+c.powerMin+' a '+c.powerMax+' CV');
+    else if(c.powerMin) a.push('almeno '+c.powerMin+' CV');
+    else if(c.powerMax) a.push('fino a '+c.powerMax+' CV');
+    if(c.drive==='4') a.push('trazione 4x4');
+    if(c.color) a.push('colore '+c.color);
+    if(c.eq && c.eq.length) a.push('con '+c.eq.map(function(k){ return EQUIP_NAME[k]||k; }).join(', '));
+    if(c.seatsMin) a.push('almeno '+c.seatsMin+' posti');
+    if(c.doors) a.push(c.doors+' porte');
+    if(c.owners1) a.push('unico proprietario');
+    if(c.seller) a.push(c.seller==='D' ? 'solo concessionari' : 'solo privati');
+    if(c.vat) a.push('IVA esposta');
+    if(c.damaged==='only') a.push('solo incidentate');
+    else if(c.damaged==='yes') a.push('anche incidentate');
+    if(c.excl && c.excl.length) a.push('senza: '+c.excl.join(', '));
+    if(c.countries && c.countries.length) a.push('solo '+c.countries.map(function(k){ return {DE:'Germania', BE:'Belgio', FR:'Francia', ES:'Spagna'}[k]; }).join(', '));
+    if(c.fixed && c.fixed.length) a.push('corretto: '+c.fixed.join(', '));
+    if(c.ignored && c.ignored.length) a.push('non filtrato: '+c.ignored.join(', '));
+    return a.join(' · ');
+  }
+  function siteQuery(c, m){
+    if(!m) return '';
+    var o = {};
+    if(m.pmin) o[m.pmin] = c.priceMin;
+    if(m.pmax) o[m.pmax] = c.priceMax;
+    if(m.ymin) o[m.ymin] = c.yearMin;
+    if(m.ymax) o[m.ymax] = c.yearMax;
+    if(m.kmin) o[m.kmin] = c.kmMin;
+    if(m.kmax) o[m.kmax] = c.kmMax;
+    if(m.diesel && c.fuel==='D') o[m.diesel[0]] = m.diesel[1];
+    return [qs(o), m.fix||''].filter(Boolean).join('&');
+  }
+  function withQuery(u, q){ return q ? u+(u.indexOf('?')<0 ? '?' : '&')+q : u; }
+  function qs(o){ var a=[]; Object.keys(o).forEach(function(k){ var v=o[k]; if(v!==null && v!==undefined && v!=='') a.push(k+'='+enc(v)); }); return a.join('&'); }
+  function rng(a,b,sep,lo,hi){ return (a||b) ? (a||lo||'')+sep+(b||hi||'') : ''; }
+
+  // Ogni costruttore restituisce {method, links:[{label,url}]} oppure null (allora si passa da Google)
+  var B = {
+    as24: function(c,s){
+      if(!c.make) return null;
+      var p = as24Model(c), base = 'https://www.autoscout24.it/lst/'+c.make.slug;
+      if(!p.fuel && c.make.n==='BMW'){ var eng = (c.words||[]).filter(function(x){ return /^\d{2}[die]$/.test(x); })[0]; if(eng) p.fuel = {d:'D', i:'B', e:'H'}[eng.slice(-1)]; }  // "x5 30d" e' diesel
+      var eqCodes = [], trust = ['gear','fuel','year','km','body'];
+      (c.eq||[]).forEach(function(k){ if(EQUIP_AS24[k]){ eqCodes.push(EQUIP_AS24[k]); trust.push('eq:'+k); } });
+      if(c.drive==='4'){ eqCodes.push(11); trust.push('drive'); }  // 11 = trazione integrale
+      if(c.powerMin || c.powerMax) trust.push('power');
+      if(c.seller) trust.push('seller');
+      if(c.vat) trust.push('vat');
+      if(c.color && AS24_COLOR[c.color]) trust.push('color');
+      if(c.seatsMin) trust.push('seats');
+      if(c.doors) trust.push('doors');
+      if(c.owners1) trust.push('owners');
+      if(c.damaged==='only') trust.push('damage');
+      // la potenza va sempre in kW, qualunque sia "powertype"
+      var par = {atype:'C', cy:s.cy, pricefrom:c.priceMin, priceto:c.priceMax, fregfrom:c.yearMin, fregto:c.yearMax, kmfrom:c.kmMin, kmto:c.kmMax,
+        fuel:{D:'D',B:'B',E:'E',H:'2,3',L:'L',C:'C'}[c.fuel || p.fuel || '']||'', gear:c.gear, body:{SW:5, CA:2, BE:6}[c.body]||'',
+        powertype:(c.powerMin||c.powerMax)?'kw':'', powerfrom:c.powerMin?Math.floor((c.powerMin-1)/1.35962):'', powerto:c.powerMax?Math.ceil((c.powerMax+1)/1.35962):'',
+        custtype:c.seller||'', vatded:c.vat?'true':'', eq:eqCodes.join(','), bcol:AS24_COLOR[c.color]||'', seatsfrom:c.seatsMin||'',
+        doorfrom:c.doors?(c.doors===3?2:4):'', doorto:c.doors?(c.doors===3?3:5):'', prevownersid:c.owners1?1:'',
+        ustate:c.damaged==='only'?'A':(c.damaged==='yes'?'N,U,A':''), sort:'price', desc:0};
+      var links = [];
+      if(p.m1){
+        links.push({label:'Marca e modello', url:base+'/'+p.m1+'?'+qs(Object.assign({}, par, {version:versionWord(p.rest||[])}))});
+        // also = pagina da leggere in piu' (non di riserva): stesso modello, catalogato dal sito sotto un altro nome
+        if(p.base) links.push({label:'Modello e versione', url:base+'/'+p.base.m1+'?'+qs(Object.assign({}, par, {version:versionWord([p.base.version].concat(p.rest||[]))})), also:true});
+        links.push({label:'Marca e testo libero', url:base+'?'+qs(Object.assign({}, par, {version:(c.words||[]).map(wordOut).join(' ')}))});
+      } else links.push({label:'Apri ricerca', url:base+'?'+qs(par)});
+      // questi filtri li applica il sito stesso, nell'indirizzo: verificato il 19/11/2026
+      return {method:'filtri', links:links, trust:trust, pageParam:'page'};
+    },
+    mobile: function(c){
+      if(!c.make || !c.make.mob) return null;
+      var par = {isSearchRequest:'true', s:'Car', vc:'Car', ms:c.make.mob+';;;'+kwQuery(c,'de',true),
+        p:rng(c.priceMin,c.priceMax,':'), fr:rng(c.yearMin,c.yearMax,':'), ml:rng(c.kmMin,c.kmMax,':'),
+        pw:rng(c.powerMin?Math.floor((c.powerMin-1)/1.35962):'', c.powerMax?Math.ceil((c.powerMax+1)/1.35962):'', ':'),
+        c:{SW:'EstateCar', CA:'Cabrio', BE:'Limousine'}[c.body]||'', dam:c.damaged==='no'?'false':'',
+        ft:{D:'DIESEL',B:'PETROL',E:'ELECTRICITY',H:'HYBRID',L:'LPG',C:'CNG'}[c.fuel]||'',
+        tr:{A:'AUTOMATIC_GEAR',M:'MANUAL_GEAR'}[c.gear]||'', sb:'p', od:'up', lang:'it'};
+      return {method:'filtri', links:[{label:'Apri ricerca', url:'https://suchen.mobile.de/fahrzeuge/search.html?'+qs(par)}]};
+    },
+    klein: function(c){
+      var p = parts(c); if(!p.q) return null;
+      var k = slug(kwQuery(c,'de')), pr = rng(c.priceMin,c.priceMax,':');
+      var links = [];
+      if(pr) links.push({label:'Con prezzo', url:'https://www.kleinanzeigen.de/s-autos/preis:'+pr+'/'+k+'/k0c216'});
+      links.push({label:pr?'Solo parole':'Apri ricerca', url:'https://www.kleinanzeigen.de/s-autos/'+k+'/k0c216'});
+      return {method:'parole', links:links};
+    },
+    lbc: function(c){
+      var p = parts(c); if(!p.q) return null;
+      var par = {category:2, text:kwQuery(c,'fr'), price:rng(c.priceMin,c.priceMax,'-','min','max'), regdate:rng(c.yearMin,c.yearMax,'-','min','max'),
+        mileage:rng(c.kmMin,c.kmMax,'-','min','max'), fuel:{B:1,D:2,L:3,E:4,H:6}[c.fuel]||'', gearbox:{M:1,A:2}[c.gear]||'',
+        horse_power_din:rng(c.powerMin,c.powerMax,'-','min','max'), owner_type:{D:'pro', P:'private'}[c.seller]||'', vehicle_type:{SW:'break', CA:'cabriolet', BE:'berline'}[c.body]||''};
+      return {method:'filtri', links:[{label:'Apri ricerca', url:'https://www.leboncoin.fr/recherche?'+qs(par)}]};
+    },
+    lc: function(c){
+      if(!c.make) return null;
+      var p = parts(c);
+      var par = {priceMin:c.priceMin, priceMax:c.priceMax, yearMin:c.yearMin, yearMax:c.yearMax, mileageMin:c.kmMin, mileageMax:c.kmMax, powerDINMin:c.powerMin, powerDINMax:c.powerMax,
+        energies:{D:'dies',B:'ess',E:'elec',H:'hyb',L:'gpl'}[c.fuel]||'', gearbox:{A:'AUTO',M:'MANUAL'}[c.gear]||''};
+      var u = function(mm){ return 'https://www.lacentrale.fr/listing?'+qs(Object.assign({makesModelsCommercialNames:mm}, par)); };
+      var links = [];
+      if(p.m1) links.push({label:'Marca e modello', url:u(c.make.lc+':'+p.m1.replace(/-/g,' ').toUpperCase())});
+      links.push({label:p.m1?'Solo marca':'Apri ricerca', url:u(c.make.lc)});
+      return {method:'filtri', links:links};
+    },
+    // s.q = filtri che il sito accetta nell'indirizzo (provati dal vivo il 23/11/2026); tpl[0] assente = il sito ha solo la pagina della marca
+    path: function(c,s){
+      if(!c.make) return null;
+      var p = parts(c), mk = (s.mk && s.mk[c.make.slug]) || c.make.slug, md = familySlug(c, s.cls||'classe', s.clsAfter) || p.m1, links = [], q = siteQuery(c, s.q);
+      var model = md && s.tpl[0];
+      if(model) links.push({label:'Marca e modello', url:withQuery(s.tpl[0].replace('{mk}',mk).replace('{md}',md), q)});
+      links.push({label:model?'Solo marca':'Apri ricerca', url:withQuery(s.tpl[1].replace('{mk}',mk), q)});
+      return {method:s.q?'filtri':'modello', links:links, pageParam:s.pageParam||''};
+    },
+    // Spoticar (Stellantis), stessa piattaforma nei quattro paesi. Provati su spoticar.de il 23/11/2026: brand, model, min_price, max_price,
+    // min_year, max_year, max_km, energy=diesel, sort=price_asc, page. Una marca scritta male viene ignorata (tornano tutte le auto): Mercedes e' "mercedes".
+    spoticar: function(c,s){
+      if(!c.make) return null;
+      var p = parts(c), mk = {'mercedes-benz':'mercedes'}[c.make.slug] || c.make.slug, md = p.m1, links = [];
+      var u = function(withModel){
+        var f = [['brand',mk]];
+        if(withModel) f.push(['model',md]);
+        if(c.priceMin) f.push(['min_price',c.priceMin]);
+        if(c.priceMax) f.push(['max_price',c.priceMax]);
+        if(c.yearMin) f.push(['min_year',c.yearMin]);
+        if(c.yearMax) f.push(['max_year',c.yearMax]);
+        if(c.kmMax) f.push(['max_km',c.kmMax]);
+        if(c.fuel==='D') f.push(['energy','diesel']);
+        return s.base+'?page=1&'+f.map(function(x,i){ return 'filters['+i+']['+x[0]+']='+enc(x[1]); }).join('&')+'&sort=price_asc';
+      };
+      if(md) links.push({label:'Marca e modello', url:u(true)});
+      links.push({label:md?'Solo marca':'Apri ricerca', url:u(false)});
+      return {method:'filtri', links:links, pageParam:'page'};
+    },
+    // Renew (rete Renault). Le etichette vanno scritte come le scrive il sito: maiuscole in Francia e Spagna; in Francia i modelli Renault
+    // portano la generazione ("CLIO V"), e "CLIO" da solo non trova nulla: per questo si leggono anche le generazioni (provato il 23/11/2026).
+    renew: function(c,s){
+      if(!c.make) return null;
+      if(s.only && s.only.indexOf(c.make.slug)<0) return null;
+      var w = (c.words||[]).map(wordOut), md = w.length ? w[0] : '', links = [];
+      var lab = function(x){ return s.up ? x.toUpperCase() : x.replace(/(^|[\s-])([a-z])/g, function(m,a,b){ return a+b.toUpperCase(); }); };
+      var mk = lab(c.make.n);
+      var u = function(model){ return s.base+'?'+qs({'brand.label.raw':mk, 'model.label.raw':model}); };
+      if(md){
+        links.push({label:'Marca e modello', url:u(lab(md))});
+        if(s.gen && c.make.slug==='renault') ['V','IV','VI','III'].forEach(function(g){ links.push({label:'Modello '+g, url:u(lab(md)+' '+g), also:true}); });
+      }
+      links.push({label:md?'Solo marca':'Apri ricerca', url:u('')});
+      return {method:'modello', links:links, pageParam:'page'};
+    },
+    // Quoka: parole chiave; commercial=false mostra solo i privati (provato il 23/11/2026: 7.122 annunci su 41.009)
+    quoka: function(c){
+      var p = parts(c); if(!p.q) return null;
+      return {method:'parole', links:[{label:'Apri ricerca', url:'https://www.quoka.de/anzeigen/auto-motorrad/automarkt/?'+qs({q:kwQuery(c,'de'), commercial:{D:'true', P:'false'}[c.seller]||''})}],
+        pageParam:'pag', trust:c.seller?['seller']:[]};
+    },
+    marktplaats: function(c,s){
+      var p = parts(c); if(!p.q) return null;
+      var h = [];
+      if(c.priceMin) h.push('PriceCentsFrom:'+c.priceMin*100);
+      if(c.priceMax) h.push('PriceCentsTo:'+c.priceMax*100);
+      return {method:'parole', links:[{label:'Apri ricerca', url:s.base+'q/'+enc(kwQuery(c,s.lang||'fr').toLowerCase()).replace(/%20/g,'+')+'/'+(h.length?'#'+h.join('|'):'')}]};
+    },
+    mila: function(c){
+      var p = parts(c); if(!p.q) return null;
+      return {method:'parole', links:[{label:'Apri ricerca', url:'https://www.milanuncios.com/coches-de-segunda-mano/?'+qs({s:kwQuery(c,'es'), desde:c.priceMin, hasta:c.priceMax})}]};
+    },
+    walla: function(c){
+      var p = parts(c); if(!p.q) return null;
+      return {method:'parole', links:[{label:'Apri ricerca', url:'https://es.wallapop.com/search?'+qs({keywords:kwQuery(c,'es'), category_id:100, min_sale_price:c.priceMin, max_sale_price:c.priceMax})}]};
+    },
+    // AutoUncle: marca e modello con l'iniziale maiuscola, allestimento dopo "t-" (indirizzi visti il 20/11/2026: /VW/Golf, /VW/Golf%20VIII/t-GTI)
+    uncle: function(c,s){
+      if(!c.make) return null;
+      var mk = {Volkswagen:'VW'}[c.make.n] || c.make.n, w = (c.words||[]).map(wordOut), links = [];
+      var cap = function(x){ return (/^[a-z]{1,3}$/.test(x) || /\d/.test(x)) ? x.toUpperCase() : x.charAt(0).toUpperCase()+x.slice(1); };
+      var md = w.length ? cap(w[0]) : '', trim = w[1] && !/^\d/.test(w[1]) ? cap(w[1]) : '';
+      var q = siteQuery(c, {pmin:'s[min_price]', pmax:'s[max_price]', ymin:'s[min_year]', kmax:'s[max_km]'});
+      if(md && trim) links.push({label:'Modello e allestimento', url:withQuery(s.base+enc(mk)+'/'+enc(md)+'/t-'+enc(trim), q)});
+      if(md) links.push({label:'Marca e modello', url:withQuery(s.base+enc(mk)+'/'+enc(md), q)});
+      links.push({label:md?'Solo marca':'Apri ricerca', url:withQuery(s.base+enc(mk), q)});
+      return {method:q?'filtri':'modello', links:links};
+    },
+    custom: function(c,s){
+      var p = parts(c); if(!p.q) return null;
+      return {method:'parole', links:[{label:'Apri ricerca', url:s.tpl.replace(/\{q\}/g, enc(p.q))}]};
+    }
+  };
+
+  // v:1 = indirizzo provato dal vivo (19/11/2026 e 23/11/2026); js:1 = pagina composta dal browser: la legge il browser del computer;
+  // st:1 = la pagina arriva gia' completa: se dice di non avere annunci non serve farla rileggere
+  var SITES = [
+    // Germania
+    {n:'mobile.de', d:'mobile.de', c:'DE', t:'Portale', k:'mobile'},
+    {n:'AutoScout24', d:'autoscout24.de', c:'DE', t:'Portale', k:'as24', cy:'D', v:1},
+    {n:'Kleinanzeigen', d:'kleinanzeigen.de', c:'DE', t:'Annunci tra privati', k:'klein', v:1},
+    {n:'AutoUncle', d:'autouncle.de', c:'DE', t:'Aggregatore', k:'uncle', base:'https://www.autouncle.de/de/gebrauchtwagen/'},
+    {n:'12Gebrauchtwagen', d:'12gebrauchtwagen.de', c:'DE', t:'Aggregatore', k:'path', tpl:['https://www.12gebrauchtwagen.de/auto/{mk}/{md}','https://www.12gebrauchtwagen.de/auto/{mk}'], mk:{'volkswagen':'vw'}, cls:'klasse', clsAfter:1},
+    {n:'pkw.de', d:'pkw.de', c:'DE', t:'Portale', k:'path', tpl:['https://www.pkw.de/autokatalog/{mk}/{md}','https://www.pkw.de/autokatalog/{mk}'], mk:{'volkswagen':'vw'}, cls:'klasse', clsAfter:1},
+    {n:'auto.de', d:'auto.de', c:'DE', t:'Portale', k:'path', tpl:['https://www.auto.de/angebot/{mk}/{md}/gebrauchtwagen/','https://www.auto.de/angebot/{mk}/'], cls:'klasse', clsAfter:1, v:1},
+    {n:'Spoticar', d:'spoticar.de', c:'DE', t:'Usato di marca', k:'spoticar', base:'https://www.spoticar.de/gebrauchtwagen-kaufen', v:1, st:1},
+    {n:'Renew (Renault)', d:'de.renew.auto', c:'DE', t:'Usato di marca', k:'renew', base:'https://de.renew.auto/suche.html', v:1, st:1},
+    {n:'Quoka', d:'quoka.de', c:'DE', t:'Annunci tra privati', k:'quoka', v:1, st:1},
+    {n:'webauto.de', d:'webauto.de', c:'DE', t:'Portale'},
+    {n:'markt.de', d:'markt.de', c:'DE', t:'Annunci tra privati'},
+    // Belgio
+    {n:'AutoScout24', d:'autoscout24.be', c:'BE', t:'Portale', k:'as24', cy:'B', v:1},
+    {n:'2ememain', d:'2ememain.be', c:'BE', t:'Annunci tra privati', k:'marktplaats', base:'https://www.2ememain.be/l/autos/', v:1},
+    {n:'2dehands', d:'2dehands.be', c:'BE', t:'Annunci tra privati', k:'marktplaats', base:'https://www.2dehands.be/l/auto-s/', lang:'nl', v:1},
+    {n:'AutoTrends', d:'autotrends.be', c:'BE', t:'Portale', k:'path', tpl:['https://www.autotrends.be/fr/occasions/voiture-occasion-belgique/auto/{mk}/{md}','https://www.autotrends.be/fr/occasions/voiture-occasion-belgique/auto/{mk}'], v:1},
+    {n:'Cardoen', d:'cardoen.be', c:'BE', t:'Rivenditore', k:'path', tpl:[null,'https://www.cardoen.be/fr/achat/occasions/{mk}/offres/'], v:1, st:1},
+    {n:'Spoticar', d:'spoticar.be', c:'BE', t:'Usato di marca', k:'spoticar', base:'https://www.spoticar.be/fr/voitures-occasion', v:1, st:1},
+    {n:'Renew (Renault)', d:'fr-be.renew.auto', c:'BE', t:'Usato di marca', k:'renew', base:'https://fr-be.renew.auto/achat-vehicules-occasions.html', v:1, st:1},
+    {n:'Gocar', d:'gocar.be', c:'BE', t:'Portale'},
+    {n:'Vroom.be', d:'vroom.be', c:'BE', t:'Portale'},
+    {n:'My Way', d:'myway.be', c:'BE', t:'Usato di marca'},
+    // Francia
+    {n:'Leboncoin', d:'leboncoin.fr', c:'FR', t:'Annunci tra privati', k:'lbc'},
+    {n:'La Centrale', d:'lacentrale.fr', c:'FR', t:'Portale', k:'lc', v:1},
+    {n:'AutoScout24', d:'autoscout24.fr', c:'FR', t:'Portale', k:'as24', cy:'F'},
+    {n:'Le Parking', d:'leparking.fr', c:'FR', t:'Aggregatore', k:'path', tpl:['https://www.leparking.fr/voiture-occasion/{mk}-{md}.html','https://www.leparking.fr/voiture-occasion/{mk}.html'], mk:{'mercedes-benz':'mercedes'}, v:1},
+    {n:'Aramisauto', d:'aramisauto.com', c:'FR', t:'Rivenditore', k:'path', tpl:['https://www.aramisauto.com/voitures/occasion/{mk}/{md}/','https://www.aramisauto.com/voitures/occasion/{mk}/'], mk:{'mercedes-benz':'mercedes'}, pageParam:'page', v:1},
+    {n:'ParuVendu', d:'paruvendu.fr', c:'FR', t:'Annunci tra privati', k:'path', tpl:['https://www.paruvendu.fr/a/voiture-occasion/{mk}/{md}/','https://www.paruvendu.fr/a/voiture-occasion/{mk}/'], pageParam:'p',
+      q:{pmin:'px0', pmax:'px1', ymin:'a0', ymax:'a1', kmin:'km0', kmax:'km1', fix:'tri=prix&ord=asc'}, v:1, st:1},
+    {n:"L'argus", d:'largus.fr', c:'FR', t:'Portale', k:'path', tpl:['https://occasion.largus.fr/auto/{mk}/{md}/','https://occasion.largus.fr/auto/{mk}/'], mk:{'mercedes-benz':'mercedes'},
+      q:{ymin:'year_min', ymax:'year_max', kmin:'mileage_min', kmax:'mileage_max', diesel:['energy','diesel'], fix:'sort=price_asc'}, pageParam:'currentpage', v:1, st:1},
+    {n:'Ouest-France Auto', d:'ouestfrance-auto.com', c:'FR', t:'Portale'},
+    {n:'AutoUncle', d:'autouncle.fr', c:'FR', t:'Aggregatore', k:'uncle', base:'https://www.autouncle.fr/fr/voitures-occasion/'},
+    {n:'Autosphere', d:'autosphere.fr', c:'FR', t:'Rivenditore', k:'path', tpl:['https://www.autosphere.fr/voiture-occasion/{mk}/{md}.html','https://www.autosphere.fr/voiture-occasion/{mk}.html']},
+    {n:'Spoticar', d:'spoticar.fr', c:'FR', t:'Usato di marca', k:'spoticar', base:'https://www.spoticar.fr/voitures-occasion', v:1, st:1},
+    {n:'Renew (Renault)', d:'fr.renew.auto', c:'FR', t:'Usato di marca', k:'renew', base:'https://fr.renew.auto/achat-vehicules-occasions.html', up:1, gen:1, v:1, st:1},
+    {n:'BYmyCAR', d:'bymycar.fr', c:'FR', t:'Rivenditore', k:'path', tpl:['https://www.bymycar.fr/voiture-occasion/{mk}/{md}','https://www.bymycar.fr/voiture-occasion/{mk}'], pageParam:'page', v:1, st:1},
+    {n:'Elite Auto', d:'elite-auto.fr', c:'FR', t:'Rivenditore', k:'path', tpl:['https://www.elite-auto.fr/occasion/{mk}/{md}','https://www.elite-auto.fr/occasion/{mk}'], v:1, st:1},
+    {n:'Capcar', d:'capcar.fr', c:'FR', t:'Annunci tra privati', k:'path', tpl:['https://www.capcar.fr/voiture-occasion/modele/{mk}-{md}','https://www.capcar.fr/voiture-occasion/marque/{mk}'], pageParam:'page', js:1, v:1},
+    {n:'Starterre', d:'starterre.fr', c:'FR', t:'Rivenditore'},
+    {n:'Carizy', d:'carizy.com', c:'FR', t:'Annunci tra privati'},
+    {n:'Zoomcar', d:'zoomcar.fr', c:'FR', t:'Portale'},
+    // Spagna
+    {n:'Coches.net', d:'coches.net', c:'ES', t:'Portale', k:'path', tpl:['https://www.coches.net/{mk}/{md}/segunda-mano/','https://www.coches.net/{mk}/segunda-mano/'], cls:'clase', pageParam:'pg'},
+    {n:'Milanuncios', d:'milanuncios.com', c:'ES', t:'Annunci tra privati', k:'mila'},
+    {n:'Wallapop', d:'es.wallapop.com', c:'ES', t:'Annunci tra privati', k:'walla'},
+    {n:'AutoScout24', d:'autoscout24.es', c:'ES', t:'Portale', k:'as24', cy:'E'},
+    {n:'Coches.com', d:'coches.com', c:'ES', t:'Portale', k:'path', tpl:['https://www.coches.com/coches-segunda-mano/{mk}-{md}.htm','https://www.coches.com/coches-segunda-mano/{mk}.htm'], mk:{'mercedes-benz':'mercedes'}, cls:'clase', pageParam:'page', v:1},
+    {n:'Autocasion', d:'autocasion.com', c:'ES', t:'Portale', k:'path', tpl:['https://www.autocasion.com/coches-segunda-mano/{mk}-ocasion/{md}-ocasion','https://www.autocasion.com/coches-segunda-mano/{mk}-ocasion'], cls:'clase'},
+    {n:'Flexicar', d:'flexicar.es', c:'ES', t:'Rivenditore', k:'path', tpl:['https://www.flexicar.es/{mk}/{md}/segunda-mano/','https://www.flexicar.es/{mk}/segunda-mano/'], cls:'clase', v:1},
+    {n:'OcasionPlus', d:'ocasionplus.com', c:'ES', t:'Rivenditore', k:'path', tpl:['https://www.ocasionplus.com/coches-segunda-mano/{mk}/{md}','https://www.ocasionplus.com/coches-segunda-mano/{mk}'], cls:'clase', pageParam:'page', v:1},
+    {n:'Motor.es', d:'motor.es', c:'ES', t:'Portale', k:'path', tpl:['https://www.motor.es/segunda-mano/{mk}/{md}/','https://www.motor.es/segunda-mano/{mk}/'], cls:'clase'},
+    {n:'AutoUncle', d:'autouncle.es', c:'ES', t:'Aggregatore', k:'uncle', base:'https://www.autouncle.es/es/coches-segunda-mano/'},
+    {n:'Clicars', d:'clicars.com', c:'ES', t:'Rivenditore', k:'path', tpl:['https://www.clicars.com/coches-segunda-mano-ocasion/{mk}/{md}','https://www.clicars.com/coches-segunda-mano-ocasion/{mk}'], cls:'clase', v:1, st:1},
+    {n:'Crestanevada', d:'crestanevada.es', c:'ES', t:'Rivenditore', k:'path', tpl:['https://www.crestanevada.es/{mk}/{md}/coches-segunda-mano','https://www.crestanevada.es/{mk}/coches-segunda-mano'], cls:'clase', v:1, st:1},
+    {n:'Spoticar', d:'spoticar.es', c:'ES', t:'Usato di marca', k:'spoticar', base:'https://www.spoticar.es/comprar-coches-de-ocasion', v:1, st:1},
+    {n:'Renew (Renault)', d:'es.renew.auto', c:'ES', t:'Usato di marca', k:'renew', base:'https://es.renew.auto/vehiculos.html', up:1, only:['renault','dacia'], v:1, st:1},
+    {n:'HR Motor', d:'hrmotor.com', c:'ES', t:'Rivenditore'},
+    {n:'Canalcar', d:'canalcar.es', c:'ES', t:'Rivenditore'},
+    {n:'Das WeltAuto', d:'dasweltauto.es', c:'ES', t:'Usato di marca'},
+    // Tutta Europa
+    {n:'TheParking', d:'theparking.eu', c:'EU', t:'Aggregatore', k:'path', tpl:['https://www.theparking.eu/used-cars/{mk}-{md}.html','https://www.theparking.eu/used-cars/{mk}.html'], mk:{'mercedes-benz':'mercedes'}, cls:'class', clsAfter:1, v:1},
+    {n:'Carvago', d:'carvago.com', c:'EU', t:'Rivenditore', k:'path', tpl:['https://carvago.com/cars/{mk}/{md}','https://carvago.com/cars/{mk}'], cls:'class', clsAfter:1, pageParam:'page',
+      q:{pmin:'price-from', pmax:'price-to', ymin:'registration-date-from', ymax:'registration-date-to', kmin:'mileage-from', kmax:'mileage-to', fix:'sort=price&direction=asc'}, v:1, st:1},
+    {n:'Ooyyo', d:'ooyyo.com', c:'EU', t:'Aggregatore'},
+    // Solo commercianti: accesso con registrazione
+    {n:'AUTO1.com', d:'auto1.com', c:'B2B', home:'https://www.auto1.com/'},
+    {n:'Autobid.de', d:'autobid.de', c:'B2B', home:'https://www.autobid.de/'},
+    {n:'BCA Europe', d:'bca.com', c:'B2B', home:'https://www.bca.com/'},
+    {n:'OPENLANE', d:'openlane.eu', c:'B2B', home:'https://www.openlane.eu/'},
+    {n:'Ayvens Carmarket', d:'carmarket.ayvens.com', c:'B2B', home:'https://carmarket.ayvens.com/'},
+    {n:'eCarsTrade', d:'ecarstrade.com', c:'B2B', home:'https://ecarstrade.com/'},
+    {n:'Autorola', d:'autorola.it', c:'B2B', home:'https://www.autorola.it/'},
+    {n:'CarOnSale', d:'caronsale.com', c:'B2B', home:'https://www.caronsale.com/'},
+    {n:'Arval Motortrade', d:'motortrade.arval.com', c:'B2B', home:'https://motortrade.arval.com/'},
+    {n:'Alcopa Auction', d:'alcopa-auction.fr', c:'B2B', home:'https://www.alcopa-auction.fr/'},
+    {n:'VPauto', d:'vpauto.fr', c:'B2B', home:'https://www.vpauto.fr/'}
+  ];
+  var COUNTRIES = [['DE','Germania','D'],['BE','Belgio','B'],['FR','Francia','F'],['ES','Spagna','E'],['EU','Tutta Europa','EU'],['B2B','Aste e piattaforme per commercianti','B2B']];
+  var METHOD = {filtri:'Filtri completi', parole:'Parole chiave e prezzo', modello:'Marca e modello', google:'Via Google', home:'Accesso riservato'};
+
+  function googleUrl(site, c){ var p = parts(c); return 'https://www.google.com/search?q='+enc('site:'+site.d+' '+p.q); }
+  function siteLinks(site, c){
+    if(site.c==='B2B') return {method:'home', links:[{label:'Apri sito', url:site.home}], google:null, scan:false};
+    var r = site.k && B[site.k] ? B[site.k](c, site) : null;
+    var g = parts(c).q ? googleUrl(site, c) : null;
+    if(r) return {method:r.method, links:r.links, google:g, scan:true, trust:r.trust||[], pageParam:r.pageParam||''};
+    return {method:'google', links:g?[{label:'Cerca con Google', url:g}]:[{label:'Apri sito', url:'https://'+site.d}], google:null, scan:false};
+  }
+  var DISCOVER = {DE:{gl:'de',hl:'de',w:'gebraucht kaufen'}, FR:{gl:'fr',hl:'fr',w:'occasion'}, ES:{gl:'es',hl:'es',w:'segunda mano'}, BE:{gl:'be',hl:'fr',w:'occasion Belgique'}};
+  function discoverQueries(c, countries){
+    var p = parts(c); if(!p.q) return [];
+    return countries.filter(function(k){ return DISCOVER[k]; }).map(function(k){
+      var d = DISCOVER[k], q = p.q+' '+d.w+(c.priceMax?' '+c.priceMax+' €':'');
+      return {country:k, url:'https://www.google.com/search?q='+enc(q).replace(/%20/g,'+')+'&gl='+d.gl+'&hl='+d.hl+'&brd_json=1'};
+    });
+  }
+  return {MAKES:MAKES, SITES:SITES, COUNTRIES:COUNTRIES, METHOD:METHOD, parseQuery:parseQuery, siteLinks:siteLinks, findMake:findMake, parts:parts, describe:describe, discoverQueries:discoverQueries, slug:slug, kwQuery:kwQuery, familySlug:familySlug, EQUIP_NAME:EQUIP_NAME, COLORS:COLORS.map(function(c){ return c[0]; })};
+})();
+if(typeof module!=='undefined') module.exports = CV;
+</script>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var LOCAL = window.CV_LOCAL || null;
+  var EXAMPLE = 'BMW 320d touring dal 2019 max 25000 euro sotto 120000 km automatico';
+  var crit = CV.parseQuery(''), lastQ = '', qTimer = null, autoCountries = false;
+  var active = {DE:true, BE:true, FR:true, ES:true, EU:true, B2B:true};
+  var custom = [];
+  var scan = {job:null, timer:null, data:null, mode:'direct', showUnk:false, sort:{k:'price', dir:1}};
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  function store(k,v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)||'null'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
+  var PAGE_V = '2.5';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
+  var DOWN_MSG = 'Il programma non risponde. Se la finestra nera è chiusa, fai doppio clic su Avvia.bat (su Mac: avvia.command): si apre una scheda nuova, usa quella.';
+  var OLD_MSG = 'Questa scheda sta parlando con una versione vecchia del programma rimasta aperta. Chiudi tutte le finestre nere, poi fai doppio clic su Avvia.bat nella cartella nuova (Cercaveicoli-'+PAGE_V+').';
+  function ss(k, v){ try{ if(v===undefined) return sessionStorage.getItem(k); if(v===null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); }catch(e){} return null; }
+  // ricarica la pagina (al piu' una volta ogni 15 secondi, per non girare a vuoto)
+  function refreshPage(){
+    if(Date.now() - (+ss('cv_reload') || 0) < 15000) return false;
+    ss('cv_reload', String(Date.now())); location.reload(); return true;
+  }
+  function api(path, body){
+    var o = {headers:{'X-CV-Token':LOCAL.token, 'X-CV-Page':PAGE_V}};
+    if(body!==undefined){ o.method='POST'; o.headers['Content-Type']='application/json'; o.body=JSON.stringify(body); }
+    return fetch(path, o).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if((r.status===403 || r.status===409) && refreshPage()) throw new Error('Aggiorno la pagina, un momento…');
+        if(!r.ok) throw new Error(j.error||('Errore '+r.status));
+        return j;
+      });
+    }, function(){ lost(DOWN_MSG); throw new Error(DOWN_MSG); });
+  }
+  // ---- aggiornamento da solo: il programma scarica e installa la versione nuova, la pagina lo dice e poi si ricarica ----
+  var upd = {timer:null, waiting:false, last:null};
+  function showUpd(html){ var e = $('updMsg'); if(!e) return; e.hidden = !html; e.innerHTML = html||''; }
+  function waitNewVersion(){
+    if(upd.waiting) return;
+    upd.waiting = true; showDown('');
+    var n = 0, t = setInterval(function(){
+      n++;
+      fetch('/api/ping').then(function(r){ return r.ok ? r.json() : {}; }).then(function(j){
+        if(j.version && j.version !== PAGE_V){ clearInterval(t); location.reload(); }
+      }).catch(function(){});
+      if(n > 120){ clearInterval(t); upd.waiting = false; showUpd('L\'aggiornamento non si è concluso. Chiudi il programma e riaprilo: riparte da solo.'); }
+    }, 1000);
+  }
+  function renderUpd(u){
+    if(!u || !u.state) return;
+    upd.last = u;
+    var st = $('updState'), auto = $('autoUpd');
+    if(auto){ auto.checked = !!u.auto; auto.disabled = !!u.off; }
+    if(st) st.textContent = 'Versione '+u.current+(u.off ? ' · aggiornamenti spenti' : u.state==='aggiornato' ? ' · è l\'ultima' : u.state==='errore' ? ' · '+u.msg : u.state==='controllo' ? ' · controllo in corso…'
+      : u.state==='pronta' ? ' · è pronta la '+u.version : '');
+    if(u.state==='scarico') showUpd('Sto scaricando la versione '+esc(u.version)+' del programma…');
+    else if(u.state==='riavvio'){ showUpd('Installo la versione '+esc(u.version)+': tra qualche secondo la pagina si aggiorna da sola.'); waitNewVersion(); }
+    else if(u.state==='pronta') showUpd('È pronta la versione '+esc(u.version)+(u.note ? ' ('+esc(u.note)+')' : '')+'. '+(u.msg ? esc(u.msg) : 'Si installa da sola al prossimo avvio.')
+      + ' <button type="button" class="small" id="updNow">Installa adesso</button>');
+    else if(u.from && ss('cv_updseen') !== LOCAL.boot) showUpd('Programma aggiornato da solo alla versione '+esc(u.current)+' (prima era la '+esc(u.from)+'). <button type="button" class="small ghost" id="updOk">Ok</button>');
+    else if(!upd.waiting) showUpd('');
+  }
+  function checkUpd(body){
+    if(!LOCAL || upd.waiting) return;
+    return api('/api/update', body).then(function(u){
+      renderUpd(u);
+      clearTimeout(upd.timer);
+      if(/^(controllo|scarico|riavvio)$/.test(u.state)) upd.timer = setTimeout(function(){ checkUpd(); }, 1500);
+      return u;
+    }).catch(function(){});
+  }
+  document.addEventListener('click', function(e){
+    var id = e.target && e.target.id;
+    if(id === 'updNow') checkUpd({install:true});
+    else if(id === 'updOk'){ ss('cv_updseen', LOCAL.boot); showUpd(''); }
+    else if(id === 'updCheck'){ var st = $('updState'); if(st) st.textContent = 'Controllo in corso…'; checkUpd({check:true}); }
+  });
+  document.addEventListener('change', function(e){ if(e.target && e.target.id === 'autoUpd') checkUpd({auto:e.target.checked}); });
+  function showDown(txt){ var d = $('down'); if(!d) return; d.hidden = !txt; d.textContent = txt||''; }
+  // Se questo indirizzo non risponde piu' (o risponde una versione vecchia), il programma giusto puo' essere su una porta vicina:
+  // lo si cerca e, se c'e', la scheda si sposta li' da sola.
+  var seeking = false;
+  function lost(msg){
+    if(upd.waiting) return;  // si sta riavviando per un aggiornamento: non e' un guasto
+    showDown(msg);
+    if(seeking) return;
+    seeking = true;
+    var here = +location.port || 80, ports = [], found = false, left;
+    for(var p = 8765; p < 8785; p++) if(p !== here) ports.push(p);
+    left = ports.length;
+    ports.forEach(function(p){
+      var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function(){ if(ctl) ctl.abort(); }, 1500);
+      fetch('http://127.0.0.1:'+p+'/api/ping', ctl ? {signal:ctl.signal} : {}).then(function(r){ return r.ok ? r.json() : {}; }).then(function(j){
+        if(!found && j.app==='cercaveicoli' && j.version===PAGE_V){ found = true; location.replace('http://127.0.0.1:'+p+'/'); }
+      }).catch(function(){}).then(function(){ clearTimeout(t); if(--left===0) seeking = false; });
+    });
+  }
+  // ogni tanto la pagina chiede al programma se c'e' ancora, e se e' lo stesso di quando e' stata aperta
+  function ping(){
+    if(!LOCAL) return;
+    fetch('/api/ping').then(function(r){ return r.ok ? r.json() : {}; }).then(function(j){
+      if(j.version && j.version !== PAGE_V){  // programma e scheda di versioni diverse: prima si prova ad aggiornare la scheda
+        if(!refreshPage()) lost(OLD_MSG);
+        return;
+      }
+      if(!j.version){ lost(OLD_MSG); return; }  // risponde un programma di prima dell'aggiornamento
+      LOCAL.boot = j.boot;
+      showDown('');
+    }, function(){ lost(DOWN_MSG); });
+  }
+  function fmt(n){ return n==null ? '' : Number(n).toLocaleString('it-IT'); }
+
+  // ----- filtri -----
+  function fillMakes(){
+    $('f_make').innerHTML = '<option value="">Qualsiasi</option>' + CV.MAKES.map(function(m){ return '<option>'+esc(m.n)+'</option>'; }).join('');
+    $('f_color').innerHTML = '<option value="">Tutti</option>' + CV.COLORS.map(function(c){ return '<option value="'+c+'">'+c.charAt(0).toUpperCase()+c.slice(1)+'</option>'; }).join('');
+  }
+  function critToFields(){
+    $('f_make').value = crit.make ? crit.make.n : '';
+    $('f_words').value = crit.words.join(' ');
+    $('f_pmin').value = crit.priceMin||''; $('f_pmax').value = crit.priceMax||'';
+    $('f_ymin').value = crit.yearMin||''; $('f_ymax').value = crit.yearMax||'';
+    $('f_kmin').value = crit.kmMin||''; $('f_km').value = crit.kmMax||'';
+    $('f_pwmin').value = crit.powerMin||''; $('f_pwmax').value = crit.powerMax||'';
+    $('f_fuel').value = crit.fuel||''; $('f_gear').value = crit.gear||''; $('f_body').value = crit.body||'';
+    $('f_seller').value = crit.seller||''; $('f_vat').value = crit.vat ? '1' : ''; $('f_drive').value = crit.drive||'';
+    $('f_color').value = crit.color||''; $('f_dmg').value = crit.damaged||'no';
+  }
+  function fieldsToCrit(){
+    var n = function(id){ var v = parseInt($(id).value,10); return isNaN(v) ? null : v; };
+    var pmin = n('f_pwmin'), pmax = n('f_pwmax');
+    // quello che non ha una casella (dotazioni, parole escluse, posti, porte...) resta com'era stato capito dal testo
+    crit = Object.assign({}, crit, {make:CV.findMake($('f_make').value), makeInferred:false, words:$('f_words').value.trim().toLowerCase().split(/\s+/).filter(Boolean),
+      priceMin:n('f_pmin'), priceMax:n('f_pmax'), yearMin:n('f_ymin'), yearMax:n('f_ymax'), kmMin:n('f_kmin'), kmMax:n('f_km'),
+      powerMin:pmin, powerMax:pmax, powerAbout:(pmin===crit.powerMin && pmax===crit.powerMax) ? crit.powerAbout : null,
+      fuel:$('f_fuel').value, gear:$('f_gear').value, body:$('f_body').value, seller:$('f_seller').value, vat:$('f_vat').value==='1',
+      drive:$('f_drive').value, color:$('f_color').value, damaged:$('f_dmg').value||'no'});
+  }
+  function allSites(){
+    return CV.SITES.concat(custom.map(function(s){
+      var tpl = s.url.indexOf('{q}')>=0 ? s.url : null;
+      var dom = s.url.replace(/^https?:\/\//,'').replace(/^www\./,'').split(/[/?#]/)[0];
+      return tpl ? {n:s.name, d:dom, c:s.country, t:'Sito aggiunto da te', k:'custom', tpl:tpl, mine:1} : {n:s.name, d:dom, c:s.country, t:'Sito aggiunto da te', mine:1};
+    }));
+  }
+
+  // ----- elenco dei link -----
+  function renderCountries(){
+    $('countries').innerHTML = CV.COUNTRIES.map(function(c){
+      return '<label class="chk"><span class="plate">'+c[2]+'</span>'+esc(c[1])+'<input type="checkbox" id="cc_'+c[0]+'" data-c="'+c[0]+'"'+(active[c[0]]?' checked':'')+'></label>';
+    }).join('');
+  }
+  function renderLinks(){
+    var sites = allSites(), total = 0, direct = 0, html = '';
+    CV.COUNTRIES.forEach(function(c){
+      if(!active[c[0]]) return;
+      var rows = sites.filter(function(s){ return s.c===c[0]; });
+      if(!rows.length) return;
+      total += rows.length;
+      html += '<div class="group"><div class="ghead"><span class="plate">'+c[2]+'</span><h3>'+esc(c[1])+'</h3><span class="n">'+rows.length+' siti</span></div>';
+      rows.forEach(function(s){
+        var r = CV.siteLinks(s, crit);
+        if(r.scan) direct++;
+        var cls = r.method==='google' ? 'google' : (r.method==='home' ? 'lock' : 'direct');
+        html += '<div class="site"><div><div class="name">'+esc(s.n)+'</div><div class="dom">'+esc(s.d)+'</div></div><div class="pills">'
+          + (s.t?'<span class="pill">'+esc(s.t)+'</span>':'')
+          + '<span class="pill '+cls+'">'+esc(CV.METHOD[r.method])+'</span>'
+          + (s.v?'<span class="pill ok">Provato</span>':'')
+          + '</div><div class="acts">'
+          + r.links.map(function(l,i){ return '<a class="btn small'+(i?' ghost':'')+'" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+esc(l.label)+'</a>'; }).join('')
+          + (r.google?'<a class="btn small ghost" href="'+esc(r.google)+'" target="_blank" rel="noopener noreferrer">Google</a>':'')
+          + '</div></div>';
+      });
+      html += '</div>';
+    });
+    $('groups').innerHTML = html || '<p class="hint">Seleziona almeno un paese.</p>';
+    var p = CV.parts(crit), any = !!(p.q || lastQ.trim());
+    $('understood').innerHTML = any ? '<span>Ho capito: </span>'+esc(CV.describe(crit))+(crit.makeInferred ? ' <span>(marca dedotta dal modello)</span>' : '') : '';
+    $('summary').innerHTML = '<span><strong>'+total+'</strong> siti</span><span><strong>'+direct+'</strong> letti in automatico dal programma</span>'
+      + '<span class="hint">'+(p.q ? 'Ricerca: '+esc(p.q) : 'Scrivi almeno marca o modello')+'</span>';
+    $('linksSum').textContent = LOCAL ? 'Apri i siti a mano ('+total+' siti, con i link già filtrati)' : 'Link filtrati per ogni sito ('+total+')';
+  }
+
+  // ----- siti personalizzati -----
+  function renderCustom(){
+    $('customList').innerHTML = custom.length ? '<ul class="plain">'+custom.map(function(s,i){
+      return '<li>'+esc(s.name)+' ('+esc(s.country)+') <span class="dom">'+esc(s.url)+'</span> <button type="button" class="small ghost" data-del="'+i+'">Togli</button></li>'; }).join('')+'</ul>' : '';
+  }
+  function saveCustom(){
+    if(LOCAL) api('/api/sites', custom).catch(function(){});
+    store('cv_custom', custom);
+  }
+
+  // ----- ricerca -----
+  var GEAR_TXT = {A:'Automatico', M:'Manuale'};
+  var FUEL_TXT = {D:'Diesel', B:'Benzina', H:'Ibrida', E:'Elettrica', L:'GPL', C:'Metano', MB:'Mild hybrid benzina', MD:'Mild hybrid diesel', M:'Mild hybrid'};
+  function scanJobs(){
+    var jobs = [], pages = $('scanPages') ? +$('scanPages').value : 10;
+    allSites().forEach(function(s){
+      if(!active[s.c]) return;
+      var r = CV.siteLinks(s, crit);
+      if(!r.scan) return;
+      jobs.push({site:s.n, country:s.c, url:r.links[0].url, urls:r.links.map(function(l){ return {u:l.url, also:!!l.also}; }), trust:r.trust||[], pageParam:r.pageParam||'', pages:r.pageParam ? pages : 1, js:s.js?1:0, st:s.st?1:0});
+    });
+    return jobs;
+  }
+  function critPayload(){
+    var others = [];
+    if(crit.make) CV.MAKES.forEach(function(m){ if(m!==crit.make) others = others.concat(m.a); });
+    return {make:crit.make ? crit.make.n : '', makeAliases:crit.make ? crit.make.a : [], otherMakes:others, words:crit.words, priceMin:crit.priceMin, priceMax:crit.priceMax,
+      yearMin:crit.yearMin, yearMax:crit.yearMax, kmMin:crit.kmMin||null, kmMax:crit.kmMax, gear:crit.gear, fuel:crit.fuel, body:crit.body||'',
+      powerMin:crit.powerMin||null, powerMax:crit.powerMax||null, seller:crit.seller||'', vat:!!crit.vat, damaged:crit.damaged||'no', drive:crit.drive||'', color:crit.color||'',
+      eq:crit.eq||[], owners1:!!crit.owners1, seatsMin:crit.seatsMin||null, doors:crit.doors||null, excl:crit.excl||[],
+      countries:['DE','BE','FR','ES'].filter(function(k){ return active[k]; }).length < 4 ? ['DE','BE','FR','ES'].filter(function(k){ return active[k]; }) : []};
+  }
+  function knownSites(){ return allSites().map(function(s){ return {d:s.d, n:s.n, c:(s.c==='B2B' || s.c==='EU') ? '' : s.c}; }); }
+  function hasKey(){ var s = LOCAL.status || {}; return !!(s.hasKey && s.zone); }
+  function useBDOpt(){ return hasKey() && !!$('useBD') && $('useBD').checked; }
+  function activeList(){ return Object.keys(active).filter(function(k){ return active[k]; }); }
+  function useBrowser(){ return $('useBrowser') ? $('useBrowser').checked : true; }
+  function showReaderOpt(){ return $('showReader') ? $('showReader').checked : false; }
+  function readerName(){ var r = (LOCAL.status || {}).reader || {}; return r.found ? (r.name==='Browser' ? 'del browser' : 'di '+r.name) : ''; }
+  function renderScanHead(){
+    var box = $('scanBody');
+    if(!LOCAL){
+      box.innerHTML = '<p class="msg warn">Questa è la pagina web: prepara i link già filtrati per ogni sito (qui sotto). La ricerca automatica, con gli annunci controllati in un\'unica tabella, è nel programma per PC (cartella Cercaveicoli, file Avvia.bat) ed è gratuita: legge le pagine dal tuo computer, senza account.</p>';
+      $('linksBox').open = true;
+      return;
+    }
+    if(box.getAttribute('data-ready')) return;
+    box.setAttribute('data-ready','1');
+    box.innerHTML =
+      '<div id="scanState"><p class="hint">Scrivi l\'auto che cerchi e premi Cerca: gli annunci controllati compaiono qui.</p></div>'
+      + '<div id="scanSum"></div><div id="verifyBox"></div>'
+      + '<details id="progBox" hidden><summary id="progSum">Che cosa ha risposto ogni sito</summary><div class="progress" id="scanProg"></div></details>'
+      + '<div id="scanOut"></div>'
+      + '<details id="pasteBox"><summary>Aggiungere a mano un sito che non si è lasciato leggere</summary>'
+      + '<ol class="plain"><li>Apri la ricerca di quel sito con il suo pulsante.</li><li>Sulla pagina dei risultati premi Ctrl+A e poi Ctrl+C.</li><li>Torna qui, clicca nel riquadro e premi Ctrl+V.</li></ol>'
+      + '<textarea id="pasteArea" rows="2" placeholder="Clicca qui e premi Ctrl+V" aria-label="Incolla qui la pagina dei risultati copiata dal sito"></textarea><div id="pasteMsg" style="margin-top:8px"></div></details>'
+      + '<details id="optBox"><summary>Opzioni</summary>'
+      + '<label class="opt"><input type="checkbox" id="useBrowser"> Leggi con il browser i siti che non rispondono ai programmi</label>'
+      + '<p class="hint" id="browserHelp"></p>'
+      + '<label class="opt" style="margin-top:6px"><input type="checkbox" id="showReader"> Mostra la finestra mentre legge (normalmente resta nascosta; serve solo se un sito chiede una verifica «sei un umano?»)</label>'
+      + '<label class="opt" style="margin-top:6px" title="Le foto le carica il browser direttamente dal sito dell\'annuncio: il programma non le copia."><input type="checkbox" id="showPhotos"> Mostra la foto di ogni annuncio in tabella</label>'
+      + '<div class="row" style="margin-top:6px;align-items:center"><label class="opt" title="All\'avvio il programma controlla se c\'è una versione nuova, la scarica, la prova e si riavvia aggiornato."><input type="checkbox" id="autoUpd" checked> Aggiorna il programma da solo</label>'
+      + '<button type="button" class="small ghost" id="updCheck">Cerca aggiornamenti adesso</button><span class="hint" id="updState"></span></div>'
+      + '<div class="row"><label class="inline" for="scanPages" title="Vale per i siti che dividono i risultati in pagine. Più pagine = più annunci, ma la ricerca dura di più. Con Bright Data ogni pagina è una richiesta.">Pagine da leggere per sito, dove possibile<select id="scanPages"><option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="10" selected>10 (il massimo)</option></select></label></div>'
+      + '<details id="setBox"><summary>Bright Data (facoltativo): legge anche i siti che non rispondono</summary>'
+      + '<div id="keyState"></div>'
+      + '<label class="opt" style="margin:8px 0"><input type="checkbox" id="useBD"> Usa Bright Data per i siti che non si lasciano leggere</label>'
+      + '<form class="settings" id="setForm">'
+      + '<label>Chiave API<input id="s_key" type="password" autocomplete="off" placeholder="Incolla qui la chiave"></label>'
+      + '<label>Zona Web Unlocker<input id="s_zone" type="text" autocomplete="off" placeholder="lascia vuoto: la trovo da solo"></label>'
+      + '<label>Zona SERP (facoltativa)<input id="s_serp" type="text" autocomplete="off" placeholder="per cercare altri siti con Google"></label>'
+      + '<div class="row"><button type="submit">Salva e verifica</button></div></form><div id="setMsg" style="margin-top:10px"></div>'
+      + '<label class="chk" id="discWrap" style="margin-top:8px"><input type="checkbox" id="disc" style="margin:0 6px 0 0">Cerca anche altri siti tramite Google (usa la zona SERP)</label>'
+      + '</details></details>';
+    $('useBrowser').checked = store('cv_browser') !== false;
+    $('useBrowser').addEventListener('change', function(){ store('cv_browser', $('useBrowser').checked); showBrowserHelp(); });
+    $('showReader').checked = store('cv_showreader') === true;
+    $('showReader').addEventListener('change', function(){ store('cv_showreader', $('showReader').checked); });
+    $('showPhotos').checked = store('cv_photos') !== false;
+    $('showPhotos').addEventListener('change', function(){ store('cv_photos', $('showPhotos').checked); renderScan(); });
+    $('setForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      $('setMsg').innerHTML = '<p class="msg">Verifico la chiave…</p>';
+      api('/api/config', {apiKey:$('s_key').value.trim(), zone:$('s_zone').value.trim(), serpZone:$('s_serp').value.trim()}).then(function(j){
+        LOCAL.status = j; $('s_key').value = '';
+        $('setMsg').innerHTML = '<p class="msg'+(j.check&&j.check.ok?'':' warn')+'">'+esc(j.check?j.check.msg:'Salvato.')+'</p>';
+        if(j.check && j.check.ok) store('cv_usebd', true);  // chiave appena verificata: da qui in poi la si usa
+        showKeyState();
+      }).catch(function(err){ $('setMsg').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
+    });
+    $('useBD').addEventListener('change', function(){ store('cv_usebd', $('useBD').checked); showKeyState(); });
+    $('pasteArea').addEventListener('paste', onPaste);
+    $('scanOut').addEventListener('change', function(e){ if(e.target && e.target.id==='showUnk'){ scan.showUnk = e.target.checked; renderScan(); } });
+    $('verifyBox').addEventListener('click', function(e){ if(e.target && e.target.id==='retryBtn') retry(); });
+    api('/api/status').then(function(j){ LOCAL.status = j; showKeyState(); showBrowserHelp(); if(j.hasKey && !j.zone) verifySaved(); }).catch(function(){});
+    showBrowserHelp();
+  }
+  function showBrowserHelp(){
+    if(!$('browserHelp')) return;
+    var r = (LOCAL.status || {}).reader, who = r && r.found ? (r.name==='Browser' ? 'il browser' : r.name) : 'Chrome o Edge';
+    var txt = 'Alcuni siti (per esempio mobile.de, Leboncoin, La Centrale) rispondono solo a un browser. Per questi il programma usa '+who
+      + ' in sottofondo, senza aprire nessuna finestra sullo schermo: visita le pagine dei risultati (fino a tre per sito, solo quando premi Cerca) e legge gli annunci. Non cambia il modo in cui il browser si presenta e non risponde alle verifiche «sei un umano?»: un sito che ne chiede una resta tra quelli da aprire a mano. '
+      + 'Per correttezza: alcuni di questi siti scrivono nelle condizioni d\'uso che non vogliono strumenti automatici. Se preferisci non usarla, togli la spunta: quei siti restano tra i link da aprire a mano.';
+    if(r && !r.found) txt = 'Su questo computer non trovo né Chrome né Edge: installane uno (sono gratuiti) e riavvia il programma per leggere in automatico anche i siti che rispondono solo a un browser. ' + txt;
+    $('browserHelp').textContent = txt;
+  }
+  function verifySaved(){
+    $('setMsg').innerHTML = '<p class="msg">Verifico la chiave Bright Data salvata…</p>';
+    api('/api/config', {apiKey:'', zone:'', serpZone:''}).then(function(j){
+      LOCAL.status = j;
+      $('setMsg').innerHTML = '<p class="msg'+(j.check&&j.check.ok?'':' warn')+'">'+esc(j.check?j.check.msg:'')+'</p>';
+      if(j.check && j.check.ok){ if(store('cv_usebd') === null) store('cv_usebd', true); } else { $('optBox').open = true; $('setBox').open = true; }
+      showKeyState();
+    }).catch(function(err){ $('setMsg').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
+  }
+  function showKeyState(){
+    if(!$('keyState')) return;
+    var s = LOCAL.status || {};
+    $('keyState').innerHTML = (s.hasKey && !s.zone) ? '<p class="msg warn">C\'è una chiave Bright Data salvata (finisce con '+esc(s.keyTail)+') ma non è ancora verificata: premi Salva e verifica, lasciando vuoto il campo della chiave.</p>' : hasKey()
+      ? '<p class="msg">Chiave Bright Data salvata (finisce con '+esc(s.keyTail)+'), zona '+esc(s.zone)+'. Il programma legge gratis da solo i siti che lo permettono e chiede a Bright Data quelli che non rispondono e le pagine arrivate a metà (pochi annunci letti mentre la pagina ne dichiara molti di più). Legge tante pagine quante ne hai scelte qui sopra: ogni pagina è una richiesta.</p>'
+      : '<p class="hint">Non serve per usare il programma. Bright Data è un servizio a pagamento, con una quota gratuita ogni mese, che legge dai suoi server i siti che non rispondono ai programmi (per esempio mobile.de, Leboncoin). Se hai un account, incolla qui la chiave API e premi Salva e verifica: la zona la trova da solo. Per correttezza: alcuni di questi siti scrivono nelle condizioni d\'uso che non vogliono strumenti automatici; decidi tu se usarlo.</p>';
+    if(s.zone) $('s_zone').value = s.zone;
+    if(s.serpZone) $('s_serp').value = s.serpZone;
+    $('useBD').disabled = !hasKey();
+    $('useBD').checked = hasKey() && store('cv_usebd') !== false;
+    // in alto a destra si vede a colpo d'occhio se Bright Data e' in uso
+    $('mode').textContent = 'Programma, versione '+(LOCAL.version||'precedente')+($('useBD').checked ? ' · Bright Data attivo' : '');
+    $('discWrap').style.display = (hasKey() && s.serpZone) ? '' : 'none';
+  }
+  function busy(on){ $('go').disabled = !!on; if($('goFilters')) $('goFilters').disabled = !!on; $('go').textContent = on ? 'Cerco…' : 'Cerca'; }
+  function startScan(){
+    syncQuery();  // si cerca sempre quello che c'e' scritto adesso nella casella
+    if(!LOCAL) return;
+    renderScanHead();
+    var jobs = scanJobs(), useBD = useBDOpt();
+    if(!jobs.length){ $('scanState').innerHTML = '<p class="msg warn">Scrivi almeno la marca o il modello dell\'auto, poi premi Cerca.</p>'; return; }
+    if(scan.timer){ clearInterval(scan.timer); scan.timer = null; }
+    scan.desc = CV.describe(crit); scan.crit = crit; scan.data = null; scan.job = null; scan.showUnk = false;
+    var disc = useBD && (LOCAL.status || {}).serpZone && $('disc').checked ? CV.discoverQueries(crit, activeList()) : [];
+    scan.mode = 'direct';
+    $('scanOut').innerHTML = ''; $('scanSum').innerHTML = ''; $('verifyBox').innerHTML = ''; $('scanProg').innerHTML = ''; $('progBox').hidden = true;
+    $('scanState').innerHTML = '<p class="msg">Avvio la ricerca su '+jobs.length+' siti…</p>';
+    busy(true);
+    ss('cv_pending', JSON.stringify({q:$('q').value, t:Date.now()}));  // se la scheda era vecchia e si aggiorna, la ricerca riparte da sola
+    api('/api/scan', {mode:scan.mode, jobs:jobs, discover:disc, known:CV.SITES.map(function(s){ return s.d.split('/')[0]; }), criteria:critPayload(), browser:useBrowser(), showReader:showReaderOpt(), bdFallback:useBD})
+    .then(function(j){ ss('cv_pending', null); scan.job = j.job; scan.timer = setInterval(poll, 1200); poll(); })
+    .catch(function(err){ if(!/Aggiorno la pagina/.test(err.message)) ss('cv_pending', null); busy(false); $('scanState').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
+  }
+  function poll(){
+    if(!scan.job) return;
+    api('/api/scan/'+scan.job).then(function(j){
+      scan.data = j; renderScan();
+      if(j.done){ clearInterval(scan.timer); scan.timer = null; busy(false); }
+    }).catch(function(err){ clearInterval(scan.timer); scan.timer = null; busy(false); $('scanState').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
+  }
+  function retry(){
+    if(!scan.job) return;
+    $('verifyBox').innerHTML = '<p class="msg">Rileggo i siti…</p>';
+    busy(true);
+    api('/api/retry', {job:scan.job}).then(function(){ if(!scan.timer) scan.timer = setInterval(poll, 1200); poll(); })
+    .catch(function(err){ busy(false); $('verifyBox').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
+  }
+  function onPaste(e){
+    e.preventDefault();
+    var cd = e.clipboardData || window.clipboardData, html = cd ? cd.getData('text/html') : '';
+    if(!html){ $('pasteMsg').innerHTML = '<p class="msg warn">Negli appunti c\'è solo testo, senza i link agli annunci. Copia la pagina dal browser: Ctrl+A e poi Ctrl+C sulla pagina dei risultati.</p>'; return; }
+    syncQuery();
+    var now = CV.describe(crit);
+    if(scan.desc !== now){ scan.job = null; scan.data = null; scan.desc = now; scan.crit = crit; }  // filtri cambiati: tabella nuova, per non mescolare ricerche diverse
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    Array.prototype.forEach.call(doc.querySelectorAll('script,style,noscript,svg,iframe,link,meta'), function(n){ n.parentNode && n.parentNode.removeChild(n); });
+    Array.prototype.forEach.call(doc.querySelectorAll('[style]'), function(n){
+      if(/line-through/.test(n.getAttribute('style')||'')) n.setAttribute('data-test', 'line-through');  // prezzo barrato: resta riconoscibile
+      n.removeAttribute('style');
+    });
+    $('pasteMsg').innerHTML = '<p class="msg">Leggo la pagina incollata…</p>';
+    api('/api/import', {html:doc.body ? doc.body.innerHTML : html, job:scan.job, criteria:critPayload(), known:knownSites()}).then(function(j){
+      scan.job = j.job;
+      var bits = [j.read+(j.read===1 ? ' annuncio letto da ' : ' annunci letti da ')+j.site, j.ok+(j.ok===1 ? ' valido' : ' validi')];
+      if(j.unk) bits.push(j.unk+' con dati mancanti');
+      if(j.drop) bits.push(j.drop+' fuori dai filtri');
+      $('pasteMsg').innerHTML = '<p class="msg'+(j.read ? '' : ' warn')+'">'+esc(j.read ? bits.join(', ')+'.' : 'Non ho riconosciuto annunci in questa pagina. Controlla di aver copiato la pagina dei risultati e non un singolo annuncio.')+'</p>';
+      poll();
+    }).catch(function(err){ $('pasteMsg').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
+  }
+  var STATUS_TXT = {attesa:'in lettura…', bd:'lo sta leggendo Bright Data…', coda:'in attesa del browser', browser:'lo sta leggendo il browser…', vuoto:'nessun annuncio valido', bloccato:'non si lascia leggere', verifica:'chiede una verifica'};
+  function siteLabel(t){ return t.site+(t.country ? ' ('+t.country+')' : ''); }
+  function renderScan(){
+    var d = scan.data; if(!d) return;
+    var n = {ok:0, bloccato:0, vuoto:0, errore:0, attesa:0, bd:0, coda:0, browser:0, verifica:0};
+    d.tasks.forEach(function(t){ n[t.status] = (n[t.status]||0)+1; });
+    var total = d.tasks.length, finished = n.ok + n.vuoto + n.bloccato + n.errore + n.verifica, rd = d.reader || {};
+    $('progBox').hidden = false;
+    $('scanProg').innerHTML = d.tasks.map(function(t){
+      var cls = t.status==='ok' ? 'ok' : (t.status==='errore' ? 'err' : ((t.status==='bloccato' || t.status==='verifica') ? 'lock' : ''));
+      var txt = t.status==='ok' ? t.n+(t.n===1?' annuncio':' annunci') : (STATUS_TXT[t.status] || t.msg);
+      return '<span class="pill '+cls+'" title="'+esc((t.msg||'')+(t.note ? ' '+t.note : ''))+'">'+esc(siteLabel(t))+(t.manual ? ', incollato' : (t.via==='browser' ? ', dal browser' : (t.via==='brightdata' ? ', da Bright Data' : '')))+': '+esc(txt)+'</span>';
+    }).join('');
+    var all = d.results, good = all.filter(function(r){ return !(r.unk && r.unk.length); }), unk = all.length - good.length;
+    if(!d.done){
+      var now = d.tasks.filter(function(t){ return t.status==='browser'; })[0];
+      var line = 'Sto leggendo i siti: '+finished+' su '+total+' fatti, '+good.length+(good.length===1 ? ' annuncio trovato' : ' annunci trovati')+' finora.';
+      if(now) line += ' Sto leggendo '+siteLabel(now)+' con il browser' + (rd.hidden===false ? ': lascia lavorare la finestra, si chiude da sola.' : ' in sottofondo…');
+      else if(rd.state==='avvio') line += ' Avvio il browser per i siti che rispondono solo a un browser…';
+      else if(n.coda) line += ' '+n.coda+(n.coda===1 ? ' sito aspetta' : ' siti aspettano')+' il browser.';
+      if(n.bd) line += ' Bright Data sta leggendo '+n.bd+(n.bd===1 ? ' sito.' : ' siti.');
+      $('scanState').innerHTML = '<p class="msg">'+esc(line)+'</p>';
+      $('scanSum').innerHTML = ''; $('verifyBox').innerHTML = '';
+    } else {
+      $('scanState').innerHTML = '';
+      var parts = ['Fatto. Siti letti: '+(n.ok+n.vuoto)+' su '+total+'.'];
+      if(n.bloccato) parts.push(n.bloccato+(n.bloccato===1?' non si è lasciato':' non si sono lasciati')+' leggere.');
+      if(n.errore) parts.push(n.errore+' in errore.');
+      if(d.bd && d.bd.n) parts.push('Pagine chieste a Bright Data: '+d.bd.n+(d.bd.ok < d.bd.n ? ' ('+d.bd.ok+' riuscite).' : '.'));
+      var sum = d.hint ? '<p class="msg bad">'+esc(d.hint)+'</p>' : '<p class="msg'+(all.length?'':' warn')+'">'+esc(parts.join(' '))+'</p>';
+      if(rd.state==='assente' && rd.msg) sum += '<p class="msg warn">'+esc(rd.msg)+'</p>';
+      if(d.bd && d.bd.fail) sum += '<p class="msg warn">Bright Data si è fermato: '+esc(d.bd.fail)+' La chiave si controlla in Opzioni, Bright Data; il credito rimasto si vede nel pannello di Bright Data.</p>';
+      // i siti non letti restano a portata di mano: si aprono da qui e si aggiungono con copia e incolla
+      var todo = [];
+      if(!d.hint && scan.crit) d.tasks.forEach(function(t){
+        if(t.manual || (t.status!=='bloccato' && t.status!=='errore')) return;
+        var site = allSites().filter(function(x){ return x.n===t.site && x.c===t.country; })[0];
+        var r = site ? CV.siteLinks(site, scan.crit) : null;
+        if(r && r.links && r.links.length) todo.push('<a class="btn small" href="'+esc(r.links[0].url)+'" target="_blank" rel="noopener noreferrer" title="'+esc(t.msg||'')+'">'+esc(siteLabel(t))+'</a>');
+      });
+      if(todo.length) sum += '<div class="todo"><p><strong>Non letti in automatico</strong>: puoi aprirli da qui; per metterli in tabella usa il riquadro «Aggiungere a mano un sito» più sotto.</p><div class="row">'+todo.join('')+'</div></div>';
+      $('scanSum').innerHTML = sum;
+      var ver = d.tasks.filter(function(t){ return t.status==='verifica'; });
+      $('verifyBox').innerHTML = ver.length ? '<div class="todo"><p><strong>'+ver.length+(ver.length===1 ? ' sito ha chiesto' : ' siti hanno chiesto')+' una verifica</strong> («sei un umano?» oppure la scelta sui cookie): '
+        + esc(ver.map(siteLabel).join(', '))+'. '+(ver.length===1 ? 'La sua pagina è rimasta aperta' : 'Le loro pagine sono rimaste aperte')+' nella finestra del browser: se vuoi quegli annunci, rispondi lì e poi premi il pulsante. Altrimenti chiudi quella finestra.</p>'
+        + '<div class="row"><button type="button" id="retryBtn">Ho risposto: rileggi</button></div></div>' : '';
+    }
+    var rows = (scan.showUnk ? all : good).slice(), k = scan.sort.k, dir = scan.sort.dir;
+    rows.sort(function(a,b){ var x=a[k], y=b[k]; if(x==null) return 1; if(y==null) return -1; return (x<y?-1:x>y?1:0)*dir; });
+    var out = '';
+    if(all.length || d.done){
+      if(scan.desc) out += '<p class="hint" style="margin:12px 0 0">Ricerca controllata: '+esc(scan.desc)+'</p>';
+      out += '<div class="row" style="margin:12px 0 8px"><strong>'+good.length+(good.length===1?' annuncio verificato':' annunci verificati')+'</strong>'
+        + (unk ? '<label class="chk" style="padding-left:12px"><input type="checkbox" id="showUnk" style="margin:0 6px 0 0"'+(scan.showUnk?' checked':'')+'>Mostra anche '+unk+(unk===1?' annuncio che non indica':' annunci che non indicano')+' tutti i dati richiesti</label>' : '')
+        + (all.length ? '<a class="btn small ghost" href="/api/export?job='+esc(scan.job)+'&t='+esc(LOCAL.token)+'">Scarica per Excel (CSV)</a>' : '')
+        + (d.done ? '<a class="btn small ghost" href="/api/diag?job='+esc(scan.job)+'&t='+esc(LOCAL.token)+'" title="Le pagine lette in questa ricerca: da inviare se un sito viene letto male">Scarica diagnostica</a>' : '')+'</div>';
+    }
+    if(rows.length){
+      var hasPw = rows.some(function(r){ return r.power; });
+      var photos = photosOn();
+      scan.rows = rows;
+      out += '<div class="tablewrap"><table><thead><tr>'+(photos ? '<th class="ph">Foto</th>' : '')+'<th data-s="title">Veicolo</th><th class="num" data-s="price">Prezzo €</th><th class="num" data-s="km">Km</th><th class="num" data-s="year">Anno</th>'
+        + (hasPw ? '<th class="num" data-s="power">CV</th>' : '')+'<th data-s="gear">Cambio</th><th data-s="fuel">Alim.</th><th data-s="country">Paese</th><th data-s="site">Sito</th></tr></thead><tbody>'
+        + rows.map(function(r){
+          var sub = [];
+          if(r.seller) sub.push(esc(r.seller));
+          if(r.iva) sub.push('IVA detraibile');
+          if(r.also && r.also.length) sub.push('anche su '+esc(r.also.join(', ')));
+          if(r.dmg) sub.push('<span class="flag">Incidentata o con danni dichiarati</span>');
+          if(r.unk && r.unk.length) sub.push('<span class="flag">Non indicato nell\'annuncio: '+esc(r.unk.join(', '))+'</span>');
+          return '<tr>'+(photos ? photoCell(r, rows.indexOf(r)) : '')+'<td><a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">'+esc(r.title||'Annuncio')+'</a>'+(sub.length ? '<div class="sub">'+sub.join(' · ')+'</div>' : '')+'</td>'
+            + '<td class="num">'+fmt(r.price)+'</td><td class="num">'+fmt(r.km)+'</td><td class="num">'+(r.year||'')+'</td>'+(hasPw ? '<td class="num">'+(r.power||'')+'</td>' : '')
+            + '<td'+(r.gsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : '')+'>'+esc(GEAR_TXT[r.gear]||'')+'</td><td'+(r.fsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : '')+'>'+esc(FUEL_TXT[r.fuel]||'')+'</td><td>'+esc(r.country||'')+'</td><td>'+esc(r.site)+'</td></tr>';
+        }).join('')
+        + '</tbody></table></div>';
+    } else if(d.done){
+      out += '<p class="msg warn">'+(unk ? 'Nessun annuncio dichiara tutti i dati richiesti. Spunta la casella qui sopra per vedere quelli con dati mancanti.' : 'Nessun annuncio corrisponde a tutti i filtri. Prova ad allargarli (prezzo, anno, km) oppure togli qualche parola dalla descrizione.')+'</p>';
+    }
+    if(d.found && d.found.length){
+      out += '<h3 style="font-family:var(--font-display);font-size:19px;margin:16px 0 6px">Altri siti trovati con Google</h3><ul class="plain">'
+        + d.found.map(function(f){ return '<li><a href="'+esc(f.link)+'" target="_blank" rel="noopener noreferrer">'+esc(f.title)+'</a> <span class="dom">'+esc(f.domain)+' ('+esc(f.country)+')</span></li>'; }).join('')+'</ul>';
+    }
+    if(out !== scan.html){ scan.html = out; $('scanOut').innerHTML = out; }  // riscrivere la tabella uguale farebbe lampeggiare le foto
+  }
+
+  // ---- foto degli annunci: le carica il browser dal sito dell'annuncio, senza dire da quale pagina arriva la richiesta ----
+  var badImg = {};
+  function photosOn(){ return $('showPhotos') ? $('showPhotos').checked : store('cv_photos') !== false; }
+  function okImg(u){ return typeof u === 'string' && /^https?:\/\//i.test(u) && !badImg[u]; }
+  function rowPhotos(r){ var a = (r.imgs && r.imgs.length ? r.imgs : (r.img ? [r.img] : [])).filter(okImg); return a; }
+  // AutoScout24 da' nell'elenco la foto piccola (250x188): la stessa foto esiste anche grande
+  function bigger(u){ return /autoscout24\.net\//.test(u) ? u.replace(/\/\d{2,4}x\d{2,4}\.(webp|jpg)$/, '/800x600.$1') : u; }
+  function photoCell(r, i){
+    var a = rowPhotos(r);
+    if(!a.length) return '<td class="ph"><div class="phnone">'+(r.img ? 'foto non disponibile' : 'senza foto in elenco')+'</div></td>';
+    return '<td class="ph"><button type="button" class="phb" data-i="'+i+'" aria-label="Apri le foto di '+esc(r.title||'questo annuncio')+'"><img src="'+esc(a[0])+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+      + (a.length > 1 ? '<span class="cnt">'+a.length+' foto</span>' : '')+'</button></td>';
+  }
+  var box = {list:[], i:0, row:null};
+  function showBig(){
+    var u = box.list[box.i], img = $('phBig'), want = bigger(u);
+    img.onerror = function(){ if(img.getAttribute('src') !== u){ img.setAttribute('src', u); } else { badImg[u] = 1; } };
+    img.setAttribute('referrerpolicy', 'no-referrer'); img.setAttribute('src', want);
+    $('phPos').textContent = box.list.length > 1 ? (box.i+1)+' di '+box.list.length : '';
+    $('phPrev').disabled = box.i <= 0; $('phNext').disabled = box.i >= box.list.length-1;
+    $('phPrev').style.display = $('phNext').style.display = box.list.length > 1 ? '' : 'none';
+  }
+  function openBox(r){
+    var a = rowPhotos(r); if(!a.length) return;
+    box = {list:a, i:0, row:r};
+    $('phTtl').textContent = (r.title||'Annuncio')+(r.price ? ' · '+fmt(r.price)+' €' : '');
+    $('phOpen').setAttribute('href', /^https?:\/\//i.test(r.url||'') ? r.url : '#');
+    $('phTip').style.display = 'none';
+    $('phBox').classList.add('on'); showBig(); $('phClose').focus();
+  }
+  function closeBox(){ $('phBox').classList.remove('on'); $('phBig').removeAttribute('src'); }
+  function stepBox(d){ var n = box.i + d; if(n >= 0 && n < box.list.length){ box.i = n; showBig(); } }
+  document.addEventListener('DOMContentLoaded', function(){  // i riquadri delle foto stanno in fondo alla pagina, dopo questo programma
+    if(!$('phBox')) return;
+    document.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('.phb');
+      if(b && scan.rows){ var r = scan.rows[+b.getAttribute('data-i')]; if(r) openBox(r); return; }
+      if(e.target === $('phBox') || e.target.id === 'phClose') closeBox();
+      else if(e.target.id === 'phPrev') stepBox(-1);
+      else if(e.target.id === 'phNext') stepBox(1);
+    });
+    document.addEventListener('keydown', function(e){
+      if(!$('phBox').classList.contains('on')) return;
+      if(e.key === 'Escape') closeBox(); else if(e.key === 'ArrowLeft') stepBox(-1); else if(e.key === 'ArrowRight') stepBox(1);
+    });
+    // foto che il sito non lascia caricare: al posto dell'immagine rotta resta scritto che non e' disponibile
+    document.addEventListener('error', function(e){
+      var t = e.target; if(!t || t.tagName !== 'IMG' || !t.closest) return;
+      var b = t.closest('.phb'); if(!b) return;
+      badImg[t.getAttribute('src')] = 1;
+      // si cambia solo questa casella (riscrivere tutta la tabella farebbe ricaricare le altre foto): la foto dopo, se c'e', altrimenti la scritta
+      var r = scan.rows && scan.rows[+b.getAttribute('data-i')], a = r ? rowPhotos(r) : [], c = b.querySelector('.cnt');
+      if(a.length){ t.setAttribute('src', a[0]); if(c){ if(a.length > 1) c.textContent = a.length+' foto'; else c.parentNode.removeChild(c); } }
+      else { var d = document.createElement('div'); d.className = 'phnone'; d.textContent = 'foto non disponibile'; b.parentNode.replaceChild(d, b); }
+    }, true);
+    // anteprima grande al passaggio del mouse
+    var tip = $('phTip'), tipImg = tip.querySelector('img');
+    document.addEventListener('mouseover', function(e){
+      var b = e.target.closest && e.target.closest('.phb'); if(!b || $('phBox').classList.contains('on')) return;
+      var im = b.querySelector('img'); if(!im) return;
+      var u = im.getAttribute('src'), rc = b.getBoundingClientRect();
+      tipImg.onerror = function(){ if(tipImg.getAttribute('src') !== u) tipImg.setAttribute('src', u); else tip.style.display = 'none'; };
+      tipImg.setAttribute('referrerpolicy', 'no-referrer'); tipImg.setAttribute('src', bigger(u));
+      tip.style.display = 'block';
+      var w = Math.min(440, window.innerWidth*0.46), top = Math.max(8, Math.min(rc.top - 40, window.innerHeight - w*0.75 - 16));
+      tip.style.left = Math.min(rc.right + 12, window.innerWidth - w - 12)+'px'; tip.style.top = top+'px';
+    });
+    document.addEventListener('mouseout', function(e){ var b = e.target.closest && e.target.closest('.phb'); if(b && !(e.relatedTarget && b.contains(e.relatedTarget))) tip.style.display = 'none'; });
+    window.addEventListener('scroll', function(){ tip.style.display = 'none'; }, true);
+  });
+
+  // ----- avvio -----
+  function parseAndRender(){
+    clearTimeout(qTimer); lastQ = $('q').value; crit = CV.parseQuery(lastQ);
+    if(crit.countries && crit.countries.length){  // "solo germania": i paesi seguono quello che e' scritto
+      ['DE','BE','FR','ES'].forEach(function(k){ active[k] = crit.countries.indexOf(k)>=0; }); autoCountries = true; renderCountries();
+    } else if(autoCountries){ ['DE','BE','FR','ES'].forEach(function(k){ active[k] = true; }); autoCountries = false; renderCountries(); }
+    critToFields(); renderLinks();
+  }
+  function syncQuery(){ if($('q').value !== lastQ) parseAndRender(); }
+  fillMakes(); renderCountries();
+  custom = store('cv_custom') || [];
+  if(LOCAL){
+    $('mode').textContent = 'Programma, versione '+(LOCAL.version||'precedente'); $('mode').classList.add('on');
+    api('/api/sites').then(function(j){ if(j && j.length){ custom = j; renderCustom(); renderLinks(); } }).catch(function(){});
+  } else { $('go').textContent = 'Prepara i link'; if($('goFilters')) $('goFilters').hidden = true; }
+  $('q').placeholder = 'Es. '+EXAMPLE;
+  critToFields(); renderCustom(); renderLinks(); renderScanHead();
+  $('searchForm').addEventListener('submit', function(e){ e.preventDefault(); if(LOCAL) startScan(); else { parseAndRender(); $('linksBox').open = true; } });
+  $('goFilters').addEventListener('click', function(){ if(LOCAL) startScan(); });
+  $('q').addEventListener('input', function(){ clearTimeout(qTimer); qTimer = setTimeout(parseAndRender, 350); });  // i filtri seguono quello che scrivi
+  $('filters').addEventListener('input', function(){ fieldsToCrit(); renderLinks(); });
+  $('countries').addEventListener('change', function(e){ var c = e.target.getAttribute('data-c'); if(c){ active[c] = e.target.checked; autoCountries = false; renderLinks(); } });
+  $('customForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    custom.push({name:$('c_name').value.trim(), country:$('c_country').value, url:$('c_url').value.trim()});
+    $('c_name').value = ''; $('c_url').value = ''; saveCustom(); renderCustom(); renderLinks();
+  });
+  $('customList').addEventListener('click', function(e){ var i = e.target.getAttribute('data-del'); if(i!==null){ custom.splice(+i,1); saveCustom(); renderCustom(); renderLinks(); } });
+  if(LOCAL){
+    ping(); setInterval(function(){ if(!document.hidden) ping(); }, 15000);
+    setTimeout(function(){ checkUpd(); }, 2500);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) ping(); });
+    window.addEventListener('focus', ping);
+    var pend = null; try{ pend = JSON.parse(ss('cv_pending')||'null'); }catch(e){}
+    ss('cv_pending', null);
+    if(pend && pend.q && Date.now()-pend.t < 30000){  // la scheda si e' appena aggiornata mentre partiva una ricerca: la si riprende
+      $('q').value = pend.q; parseAndRender(); setTimeout(startScan, 400);
+    }
+    try{ $('q').focus(); }catch(e){}
+  }
+  document.addEventListener('click', function(e){ var th = e.target.closest && e.target.closest('th[data-s]'); if(th && scan.data){ var k = th.getAttribute('data-s'); scan.sort = {k:k, dir:scan.sort.k===k ? -scan.sort.dir : 1}; renderScan(); } });
+})();
+</script>
+<div id="phTip" aria-hidden="true"><img alt=""></div>
+<div id="phBox" role="dialog" aria-modal="true" aria-label="Foto dell'annuncio"><div class="ttl" id="phTtl"></div><img id="phBig" alt="">
+  <div class="bar"><button type="button" id="phPrev">&larr; Precedente</button><span id="phPos"></span><button type="button" id="phNext">Successiva &rarr;</button>
+  <a id="phOpen" href="#" target="_blank" rel="noopener noreferrer">Apri l'annuncio</a><button type="button" id="phClose">Chiudi (Esc)</button></div></div>
+</body>
+</html>
