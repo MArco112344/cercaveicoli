@@ -778,22 +778,25 @@ var CV = (function(){
         c:{SW:'EstateCar', CA:'Cabrio', BE:'Limousine'}[c.body]||'', dam:c.damaged==='no'?'false':'',
         ft:{D:'DIESEL',B:'PETROL',E:'ELECTRICITY',H:'HYBRID',L:'LPG',C:'CNG'}[c.fuel]||'',
         tr:{A:'AUTOMATIC_GEAR',M:'MANUAL_GEAR'}[c.gear]||'', sb:'p', od:'up', lang:'it'};
-      return {method:'filtri', links:[{label:'Apri ricerca', url:'https://suchen.mobile.de/fahrzeuge/search.html?'+qs(par)}]};
+      // pagine successive: pageNumber=N (20 annunci a pagina)
+      return {method:'filtri', links:[{label:'Apri ricerca', url:'https://suchen.mobile.de/fahrzeuge/search.html?'+qs(par)}], pageParam:'pageNumber', pageMax:5};
     },
     klein: function(c){
       var p = parts(c); if(!p.q) return null;
       var k = slug(kwQuery(c,'de')), pr = rng(c.priceMin,c.priceMax,':');
-      var links = [];
-      if(pr) links.push({label:'Con prezzo', url:'https://www.kleinanzeigen.de/s-autos/preis:'+pr+'/'+k+'/k0c216'});
-      links.push({label:pr?'Solo parole':'Apri ricerca', url:'https://www.kleinanzeigen.de/s-autos/'+k+'/k0c216'});
-      return {method:'parole', links:links};
+      var base = 'https://www.kleinanzeigen.de/s-autos/', links = [];
+      // p = indirizzo delle pagine successive: "seite:N" sta nel percorso, prima delle parole (25 annunci a pagina).
+      // Le regole del sito (robots.txt) escludono i programmi dagli indirizzi con il prezzo e dalla pagina 6 in poi: per questo non piu' di 5 pagine.
+      if(pr) links.push({label:'Con prezzo', url:base+'preis:'+pr+'/'+k+'/k0c216', p:base+'preis:'+pr+'/seite:{n}/'+k+'/k0c216'});
+      links.push({label:pr?'Solo parole':'Apri ricerca', url:base+k+'/k0c216', p:base+'seite:{n}/'+k+'/k0c216'});
+      return {method:'parole', links:links, pageMax:5};
     },
     lbc: function(c){
       var p = parts(c); if(!p.q) return null;
       var par = {category:2, text:kwQuery(c,'fr'), price:rng(c.priceMin,c.priceMax,'-','min','max'), regdate:rng(c.yearMin,c.yearMax,'-','min','max'),
         mileage:rng(c.kmMin,c.kmMax,'-','min','max'), fuel:{B:1,D:2,L:3,E:4,H:6}[c.fuel]||'', gearbox:{M:1,A:2}[c.gear]||'',
         horse_power_din:rng(c.powerMin,c.powerMax,'-','min','max'), owner_type:{D:'pro', P:'private'}[c.seller]||'', vehicle_type:{SW:'break', CA:'cabriolet', BE:'berline'}[c.body]||''};
-      return {method:'filtri', links:[{label:'Apri ricerca', url:'https://www.leboncoin.fr/recherche?'+qs(par)}]};
+      return {method:'filtri', links:[{label:'Apri ricerca', url:'https://www.leboncoin.fr/recherche?'+qs(par)}], pageParam:'page', pageMax:5};
     },
     lc: function(c){
       if(!c.make) return null;
@@ -865,7 +868,9 @@ var CV = (function(){
       var h = [];
       if(c.priceMin) h.push('PriceCentsFrom:'+c.priceMin*100);
       if(c.priceMax) h.push('PriceCentsTo:'+c.priceMax*100);
-      return {method:'parole', links:[{label:'Apri ricerca', url:s.base+'q/'+enc(kwQuery(c,s.lang||'fr').toLowerCase()).replace(/%20/g,'+')+'/'+(h.length?'#'+h.join('|'):'')}]};
+      // pagine successive: ".../p/N/" (30 annunci a pagina)
+      var path = s.base+'q/'+enc(kwQuery(c,s.lang||'fr').toLowerCase()).replace(/%20/g,'+')+'/', hash = h.length?'#'+h.join('|'):'';
+      return {method:'parole', links:[{label:'Apri ricerca', url:path+hash, p:path+'p/{n}/'+hash}], pageMax:5};
     },
     mila: function(c){
       var p = parts(c); if(!p.q) return null;
@@ -887,7 +892,7 @@ var CV = (function(){
       // AutoUncle tiene le Golf divise per generazione ("Golf VII", "Golf VIII"): la pagina che le riunisce e' "Golf Series" (vista il 24/11/2026)
       if(mk==='VW' && md==='Golf') links.push({label:'Tutte le generazioni', url:withQuery(s.base+'VW/Golf%20Series', q), also:true});
       links.push({label:md?'Solo marca':'Apri ricerca', url:withQuery(s.base+enc(mk), q)});
-      return {method:q?'filtri':'modello', links:links};
+      return {method:q?'filtri':'modello', links:links, pageParam:'page', pageMax:5};
     },
     custom: function(c,s){
       var p = parts(c); if(!p.q) return null;
@@ -998,7 +1003,9 @@ var CV = (function(){
     if(site.c==='B2B') return {method:'home', links:[{label:'Apri sito', url:site.home}], google:null, scan:false};
     var r = site.k && B[site.k] ? B[site.k](c, site) : null;
     var g = parts(c).q ? googleUrl(site, c) : null;
-    if(r) return {method:r.method, links:r.links, google:g, scan:true, trust:r.trust||[], pageParam:r.pageParam||''};
+    // paged = il sito si legge a pagine (numero nel parametro oppure, dove i link portano "p", nel percorso); pageMax = non oltre questa pagina
+    if(r) return {method:r.method, links:r.links, google:g, scan:true, trust:r.trust||[], pageParam:r.pageParam||'', pageMax:r.pageMax||0,
+      paged:!!(r.pageParam || r.links.some(function(l){ return !!l.p; }))};
     return {method:'google', links:g?[{label:'Cerca con Google', url:g}]:[{label:'Apri sito', url:'https://'+site.d}], google:null, scan:false};
   }
   // Modelli diversi che portano lo stesso nome con una parola in piu': chi cerca "C3" non vuole le C3 Aircross.
@@ -1213,7 +1220,7 @@ if(typeof module!=='undefined') module.exports = CV;
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   function store(k,v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)||'null'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
-  var PAGE_V = '2.8';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
+  var PAGE_V = '2.9';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
   var DOWN_MSG = 'Il programma non risponde. Se la finestra nera è chiusa, fai doppio clic su Avvia.bat (su Mac: avvia.command): si apre una scheda nuova, usa quella.';
   var OLD_MSG = 'Questa scheda sta parlando con una versione vecchia del programma rimasta aperta. Chiudi tutte le finestre nere, poi fai doppio clic su Avvia.bat nella cartella nuova (Cercaveicoli-'+PAGE_V+').';
   function ss(k, v){ try{ if(v===undefined) return sessionStorage.getItem(k); if(v===null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); }catch(e){} return null; }
@@ -1435,7 +1442,8 @@ if(typeof module!=='undefined') module.exports = CV;
       if(!active[s.c]) return;
       var r = CV.siteLinks(s, crit);
       if(!r.scan) return;
-      jobs.push({site:s.n, country:s.c, url:r.links[0].url, urls:r.links.map(function(l){ return {u:l.url, also:!!l.also}; }), trust:r.trust||[], pageParam:r.pageParam||'', pages:r.pageParam ? pages : 1, js:s.js?1:0, st:s.st?1:0});
+      jobs.push({site:s.n, country:s.c, url:r.links[0].url, urls:r.links.map(function(l){ var o = {u:l.url, also:!!l.also}; if(l.p) o.p = l.p; return o; }), trust:r.trust||[], pageParam:r.pageParam||'',
+        pages:r.paged ? (r.pageMax ? Math.min(pages, r.pageMax) : pages) : 1, js:s.js?1:0, st:s.st?1:0});
     });
     return jobs;
   }
@@ -1514,6 +1522,7 @@ if(typeof module!=='undefined') module.exports = CV;
       if(t && map[t.id]){ scan[map[t.id]] = t.checked; renderScan(); }
     });
     $('scanOut').addEventListener('click', function(e){
+      if(e.target && e.target.id==='showUnkBtn'){ scan.showUnk = true; renderScan(); return; }
       var b = e.target.closest ? e.target.closest('button.mk') : null;
       if(!b || !scan.rows) return;
       var r = scan.rows[+b.getAttribute('data-i')], a = b.getAttribute('data-a');
@@ -1633,7 +1642,9 @@ if(typeof module!=='undefined') module.exports = CV;
     $('progBox').hidden = false;
     $('scanProg').innerHTML = d.tasks.map(function(t){
       var cls = t.status==='ok' ? 'ok' : (t.status==='errore' ? 'err' : ((t.status==='bloccato' || t.status==='verifica') ? 'lock' : ''));
-      var txt = t.status==='ok' ? t.n+(t.n===1?' annuncio':' annunci') : (STATUS_TXT[t.status] || t.msg);
+      var tu = t.unk||0, tg = (t.n||0)-tu;
+      var txt = t.status==='ok' ? (tg ? tg+(tg===1?' annuncio':' annunci')+(tu ? ' + '+tu+(tu===1?' incompleto':' incompleti') : '') : (tu ? tu+(tu===1?' annuncio incompleto':' annunci incompleti') : '0 annunci'))
+        : (STATUS_TXT[t.status] || t.msg);
       return '<span class="pill '+cls+'" title="'+esc((t.msg||'')+(t.note ? ' '+t.note : ''))+'">'+esc(siteLabel(t))+(t.manual ? ', incollato' : (t.via==='browser' ? ', dal browser' : (t.via==='brightdata' ? ', da Bright Data' : '')))+': '+esc(txt)+'</span>';
     }).join('');
     // gli annunci nascosti dall'utente non contano e non si vedono, finche' non chiede di rivederli
@@ -1658,14 +1669,18 @@ if(typeof module!=='undefined') module.exports = CV;
       if(rd.state==='assente' && rd.msg) sum += '<p class="msg warn">'+esc(rd.msg)+'</p>';
       if(d.bd && d.bd.fail) sum += '<p class="msg warn">Bright Data si è fermato: '+esc(d.bd.fail)+' La chiave si controlla in Opzioni, Bright Data; il credito rimasto si vede nel pannello di Bright Data.</p>';
       // i siti non letti restano a portata di mano: si aprono da qui e si aggiungono con copia e incolla
-      var todo = [];
+      var todo = [], whyNot = {}, whyKeys = [];
       if(!d.hint && scan.crit) d.tasks.forEach(function(t){
         if(t.manual || (t.status!=='bloccato' && t.status!=='errore')) return;
+        var reason = ((t.msg||'')+(t.note ? ' '+t.note : '')).replace(/\s*:\s*april[ao] dal link\./, '.').trim() || 'Non letto.';
+        if(!whyNot[reason]){ whyNot[reason] = []; whyKeys.push(reason); }
+        whyNot[reason].push(siteLabel(t));
         var site = allSites().filter(function(x){ return x.n===t.site && x.c===t.country; })[0];
         var r = site ? CV.siteLinks(site, scan.crit) : null;
         if(r && r.links && r.links.length) todo.push('<a class="btn small" href="'+esc(r.links[0].url)+'" target="_blank" rel="noopener noreferrer" title="'+esc(t.msg||'')+'">'+esc(siteLabel(t))+'</a>');
       });
-      if(todo.length) sum += '<div class="todo"><p><strong>Non letti in automatico</strong>: puoi aprirli da qui; per metterli in tabella usa il riquadro «Aggiungere a mano un sito» più sotto.</p><div class="row">'+todo.join('')+'</div></div>';
+      if(todo.length) sum += '<div class="todo"><p><strong>Non letti in automatico</strong>: puoi aprirli da qui; per metterli in tabella usa il riquadro «Aggiungere a mano un sito» più sotto.</p><div class="row">'+todo.join('')+'</div>'
+        + '<p class="hint" id="whyNot" style="margin:8px 0 0"><strong>Perché non li ha letti</strong><br>'+whyKeys.map(function(k){ return esc(whyNot[k].join(', '))+': '+esc(k); }).join('<br>')+'</p></div>';
       $('scanSum').innerHTML = sum;
       var ver = d.tasks.filter(function(t){ return t.status==='verifica'; });
       $('verifyBox').innerHTML = ver.length ? '<div class="todo"><p><strong>'+ver.length+(ver.length===1 ? ' sito ha chiesto' : ' siti hanno chiesto')+' una verifica</strong> («sei un umano?» oppure la scelta sui cookie): '
@@ -1690,6 +1705,15 @@ if(typeof module!=='undefined') module.exports = CV;
         + (hidN ? '<label class="chk" style="padding-left:12px"><input type="checkbox" id="showHid" style="margin:0 6px 0 0"'+(scan.showHid?' checked':'')+'>Mostra '+(hidN===1?'l\'annuncio nascosto':'i '+hidN+' nascosti')+'</label>' : '')
         + (all.length ? '<a class="btn small ghost" href="/api/export?job='+esc(scan.job)+'&t='+esc(LOCAL.token)+'">Scarica per Excel (CSV)</a>' : '')
         + (d.done ? '<a class="btn small ghost" href="/api/diag?job='+esc(scan.job)+'&t='+esc(LOCAL.token)+'" title="Le pagine lette in questa ricerca: da inviare se un sito viene letto male">Scarica diagnostica</a>' : '')+'</div>';
+      if(unk && !scan.showUnk){
+        // gli annunci tra privati (Kleinanzeigen, Leboncoin...) spesso non dichiarano cambio o alimentazione nella scheda: senza questo avviso sembrerebbe che quei siti non diano nulla
+        var what = {}, where = {};
+        all.forEach(function(r){ if(!(r.unk && r.unk.length)) return; r.unk.forEach(function(w){ what[w] = (what[w]||0)+1; }); where[r.site||'?'] = (where[r.site||'?']||0)+1; });
+        var top = function(o, n){ var ks = Object.keys(o).sort(function(a,b){ return o[b]-o[a] || (a<b?-1:1); }); return ks.slice(0,n).map(function(k){ return k+' ('+o[k]+')'; }).join(', ')+(ks.length>n ? ' e altri' : ''); };
+        out += '<div class="todo" id="unkBox" style="margin:0 0 10px"><p><strong>'+(unk===1 ? 'Un altro annuncio corrisponde' : 'Altri '+unk+' annunci corrispondono')+'</strong> alla richiesta per tutto quello che la scheda riporta, ma '
+          + (unk===1 ? 'non dichiara' : 'non dichiarano')+': '+esc(top(what, 5))+'. Succede spesso con gli annunci tra privati. '+(unk===1 ? 'Arriva' : 'Arrivano')+' da: '+esc(top(where, 6))+'.</p>'
+          + '<div class="row"><button type="button" id="showUnkBtn">Mostrali in tabella</button></div></div>';
+      }
       if(d.done && base.length && !newN) out += '<p class="hint" style="margin:0 0 8px">Nessun annuncio nuovo rispetto alle ricerche di prima.</p>';
     }
     if(rows.length){

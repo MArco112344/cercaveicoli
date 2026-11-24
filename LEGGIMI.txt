@@ -103,8 +103,12 @@ COME VENGONO CONTROLLATI GLI ANNUNCI
   sigla nel titolo). Nulla viene dedotto dal testo libero.
     - Un annuncio che non corrisponde viene scartato.
     - Un annuncio che non dichiara un dato richiesto (per esempio il cambio
-      o il tetto panoramico) non entra tra i verificati: lo vedi spuntando
-      "Mostra anche gli annunci che non indicano tutti i dati richiesti".
+      o il tetto panoramico) non entra tra i verificati. Sopra la tabella un
+      riquadro dice quanti sono, che cosa non dichiarano e da quali siti
+      arrivano: con "Mostrali in tabella" li vedi, ognuno con scritto il
+      dato che manca. Succede spesso con gli annunci tra privati
+      (Kleinanzeigen, Leboncoin, Marktplaats): la scheda riporta titolo,
+      prezzo, km e anno, e il cambio solo se il venditore l'ha scritto.
 
   Modelli diversi con un nome simile restano fuori. Se cerchi "C3" non
   entrano le C3 Aircross, con "Yaris" le Yaris Cross, con "Range Rover" le
@@ -168,6 +172,10 @@ I SITI
   lette contengono gia' le auto giuste.
   Di ogni sito legge fino a 10 pagine di risultati (si cambia in "Opzioni":
   meno pagine = ricerca piu' veloce).
+  Dalla versione 2.9 legge a pagine anche Kleinanzeigen, Leboncoin,
+  Marktplaats, 2dehands, 2ememain, AutoUncle e mobile.de: di questi fino a
+  5 pagine (prima ne leggeva una sola, cioe' 20-35 annunci per sito).
+  Indirizzi delle pagine provati sui siti veri il 24/11/2026.
   Restano come link da aprire a mano i siti che vietano la lettura ai
   programmi, quelli che chiedono la verifica "sei un umano?" anche a un
   browser normale e quelli che non e' stato possibile studiare: webauto.de,
@@ -176,6 +184,28 @@ I SITI
   Tolti dall'elenco: Autohero (non vende ai commercianti), Gebrauchtwagen.de
   (e' lo stesso sito di 12Gebrauchtwagen) e Caradisiac (non ha piu' gli
   annunci dell'usato).
+  PERCHE' ALCUNI SITI DANNO POCHI ANNUNCI (controllato il 24/11/2026)
+  Alcuni siti scrivono nelle proprie regole (robots.txt) che i programmi
+  non possono leggere le pagine di ricerca, o possono leggerne solo una
+  parte. Il programma, quando legge da solo, rispetta queste regole:
+    - Kleinanzeigen: esclusi per i programmi gli indirizzi con prezzo, km,
+      anno e ordinamento, e le pagine dalla sesta in poi. Resta l'elenco
+      per parole ("mercedes a 180"), dal piu' recente, fino a 5 pagine
+      (125 annunci). I filtri li applica il programma dopo. Per questo, se
+      cerchi auto recenti, da Kleinanzeigen arriva poco: tra gli ultimi
+      annunci pubblicati la maggior parte sono auto vecchie.
+    - mobile.de, La Centrale, Wallapop: pagine di ricerca escluse del tutto
+      per i programmi. Milanuncios: escluse quelle con il prezzo.
+    - willhaben: escluse le pagine con i filtri (vedi sopra).
+  Questi siti si leggono quindi solo con il browser del computer o con
+  Bright Data (punti 2 e 3 qui sotto). Se nessuno dei due riesce, a fine
+  ricerca il sito sta nel riquadro "Non letti in automatico", e sotto
+  "Perche' non li ha letti" c'e' scritto il motivo: "Le regole del sito
+  escludono i programmi" oppure "Il sito ha rifiutato la richiesta".
+  Per avere comunque quegli annunci in tabella: apri il sito dal suo
+  tasto, e nella pagina dei risultati premi Ctrl+A e Ctrl+C; poi incolla
+  nel riquadro "Aggiungere a mano un sito".
+
   Li legge in questi modi:
   1. Direttamente, presentandosi con il proprio nome e rispettando le regole
      che ogni sito pubblica (robots.txt). Vale per i siti che lo ammettono.

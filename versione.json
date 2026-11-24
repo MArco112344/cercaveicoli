@@ -1,18 +1,18 @@
 {
- "version": "2.8",
- "note": "marca e modello da scegliere dall'elenco",
+ "version": "2.9",
+ "note": "più pagine lette su Kleinanzeigen, Leboncoin, Marktplaats, AutoUncle e mobile.de; annunci incompleti in evidenza",
  "files": {
   "server.py": {
-   "sha256": "9eb897fc57ea809f553736b0e212a4085669120b0e03a07d83629e0756daac26",
-   "size": 225313
+   "sha256": "3e51a02960015f39c397ca3b60053c0e5514c3c11ac0c7a7854ff036f8f4dbb8",
+   "size": 226583
   },
   "index.html": {
-   "sha256": "3bea067975f799191e03c950c75162668b01628eabc992ce9b3b272161871422",
-   "size": 152388
+   "sha256": "4f89622938baa2837ffa0433cef370fc10839b50604c0cefdaad3001c39325e5",
+   "size": 155310
   },
   "LEGGIMI.txt": {
-   "sha256": "635764f1041ebfa672a37b4d50c60b087fb4ef4c32ae69e90e34f878bea35a79",
-   "size": 13934
+   "sha256": "0a798bfbf91d45881dedd806dcc49ca47ea828cf828743c0c8b63a4b2d67c826",
+   "size": 15950
   },
   "cacert.pem": {
    "sha256": "d87887200c9a705dccc937b9b83b5e67e47024c4a4b7f9dd15700c72e0f55453",

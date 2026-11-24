@@ -68,9 +68,9 @@ BOOT = secrets.token_hex(6)  # cambia a ogni avvio: la pagina se ne accorge e si
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 MAX_PAGES_PER_SCAN = 60
-VERSION = '2.8'
+VERSION = '2.9'
 # Lettura diretta: il programma si presenta con il proprio nome, senza fingersi un browser
-UA = "CercaveicoliImport/2.8 (ricerca auto avviata dall'utente; poche pagine per sito)"
+UA = "CercaveicoliImport/2.9 (ricerca auto avviata dall'utente; poche pagine per sito)"
 ROBOT_NAME = 'cercaveicoliimport'
 DIRECT_GAP = float(os.environ.get('CV_DIRECT_GAP') or 1.2)  # secondi tra due letture dello stesso sito
 TEST_ORIGIN = os.environ.get('CV_TEST_ORIGIN', '').rstrip('/')  # solo per le prove
@@ -634,7 +634,8 @@ NET_HINTS = {
 }
 
 
-REFUSED = 'Il sito non ammette la lettura automatica: usa il link.'
+REFUSED = 'Il sito ha rifiutato la richiesta del programma, o ha chiesto una verifica: aprilo dal link.'
+RULES = 'Le regole del sito escludono i programmi da questa pagina: aprila dal link.'
 _HOST_LOCKS, _HOST_LAST, _ROBOTS, _ROBOTS_LOCKS = {}, {}, {}, {}
 _GUARD = threading.Lock()
 
@@ -940,7 +941,7 @@ def fuel_label(text):
 def fuel_hint(text):
     """Alimentazione da sigle tecniche nel titolo (TDI, TSI, 320d, eTSI, PHEV...)."""
     t = _plain(text or '')
-    die = re.search(r'(?<![a-z])(?:tdi|hdi|bluehdi|dci|cdi|crdi|jtdm?|multijet|tdci|cdti|d-4d|sdi|diesel|gasoil|gtd)(?![a-z])|(?<![a-z0-9])\d{3}\s?d(?![a-z0-9])', t)
+    die = re.search(r'(?<![a-z])(?:tdi|hdi|bluehdi|dci|cdi|crdi|jtdm?|multijet|tdci|cdti|d-4d|sdi|diesel|gasoil|gtd)(?![a-z])|(?<![a-z0-9])(?:[a-z]{1,3})?\d{3}\s?d(?![a-z0-9])', t)  # 320d, e anche le sigle Mercedes attaccate: A180 d, C220d, GLC220 d
     pet = re.search(r'(?<![a-z])(?:tsi|tfsi|fsi|tce|puretech|ecoboost|gti|t-gdi|mpi|vti|benzin\w*|essence|gasolina)(?![a-z])|(?<![a-z0-9])\d{3}\s?i(?![a-z0-9])', t)
     if re.search(r'(?<![a-z])etsi(?![a-z])', t):
         return 'MB'
@@ -2799,6 +2800,20 @@ def _page_url(url, n, param):
     return base + (('#' + frag) if frag else '')
 
 
+def _cand_page_url(cand, n, param):
+    """Indirizzo della pagina n di un indirizzo candidato. Dove il numero di pagina sta nel percorso (Kleinanzeigen: ".../seite:2/...",
+    Marktplaats: ".../p/2/") la pagina manda il modello dell'indirizzo ("p", con {n}); altrove basta il nome del parametro."""
+    tpl = cand.get('p')
+    if isinstance(tpl, str) and '{n}' in tpl and tpl.startswith('http') and urlparse(tpl).netloc == urlparse(cand['u']).netloc:
+        return tpl.replace('{n}', str(n))
+    return _page_url(cand['u'], n, param) if param else ''
+
+
+def _unk_n(items):
+    """Quanti annunci tenuti non dichiarano tutti i dati richiesti."""
+    return sum(1 for x in items if x.get('unk'))
+
+
 def _unglue(title, crit):
     """"VolkswagenGolf R" -> "Volkswagen Golf R": solo dopo la marca cercata e solo se segue una maiuscola o una cifra."""
     for mk in [crit.get('make')] + list(crit.get('makeAliases') or []):
@@ -2853,7 +2868,8 @@ def scan_site(task, crit, job, fetch, challenge=True):
     if not cands:
         cands = [{'u': task['url']}] + ([{'u': task['alt']}] if task.get('alt') else [])
     status, last, why = 'vuoto', '', ''
-    pages = max(1, min(MAX_PAGES_PER_SITE, int(task.get('pages') or 1))) if task.get('pageParam') else 1
+    paged = bool(task.get('pageParam')) or any(_cand_page_url(c, 2, '') for c in cands)
+    pages = max(1, min(MAX_PAGES_PER_SITE, int(task.get('pages') or 1))) if paged else 1
     keys, all_kept, read, all_dropped, got = set(), [], 0, 0, False
     first_page = ['']
 
@@ -2906,9 +2922,12 @@ def scan_site(task, crit, job, fetch, challenge=True):
         for n in range(2, pages + 1):  # pagine successive dello stesso indirizzo
             if n_found < 10:
                 break
-            st, html, final = fetch(_page_url(u, n, task.get('pageParam')))
-            if st != 'ok':
+            pu = _cand_page_url(cand, n, task.get('pageParam'))
+            if not pu:
                 break
+            st, html, final = fetch(pu)
+            if st != 'ok':
+                break  # pagina che il sito non da' (o che le sue regole escludono): ci si ferma a quelle lette
             n_found, n_fresh = take(html, final, 'pagina ' + str(n) + ': %d annunci letti')
             if not n_fresh:
                 break
@@ -2928,7 +2947,7 @@ def fetch_direct(url, jar=None, net=None):
             if net is not None:
                 net['ok'] = net.get('ok', 0) + 1  # il sito ha risposto (anche solo con le sue regole): la rete funziona
             if not allowed:
-                return 'regole', REFUSED, None
+                return 'regole', RULES, None
             code, html, final, loc = http_get(url, jar=jar)
             if code in (301, 302, 303, 307, 308) and loc:
                 url = urljoin(url, loc)  # il sito rimanda a un altro indirizzo: prima di leggerlo si ricontrollano le regole
@@ -3245,7 +3264,7 @@ def run_job(job_id, payload):
                 have = set(url_key(x['url']) for x in items2)
                 merged = items2 + [x for x in items if url_key(x['url']) not in have]
                 with JOBS_LOCK:
-                    job['tasks'][i].update({'status': 'ok' if merged else 'vuoto', 'n': len(merged), 'msg': msg2, 'read': stats2['read'], 'drop': stats2['drop'], 'via': 'brightdata',
+                    job['tasks'][i].update({'status': 'ok' if merged else 'vuoto', 'n': len(merged), 'unk': _unk_n(merged), 'msg': msg2, 'read': stats2['read'], 'drop': stats2['drop'], 'via': 'brightdata',
                                             'note': 'La lettura diretta aveva dato solo %d annunci.' % stats.get('read', 0)})
                     _add_results(job, merged)
                 return
@@ -3255,7 +3274,7 @@ def run_job(job_id, payload):
             s2, items2, msg2, stats2 = bd_scan(task)
             if 'why' not in stats2:  # pagina letta e annunci riconosciuti (validi o fuori dai filtri): il sito e' a posto
                 with JOBS_LOCK:
-                    job['tasks'][i].update({'status': s2, 'n': len(items2), 'msg': msg2, 'read': stats2['read'], 'drop': stats2['drop'], 'via': 'brightdata'})
+                    job['tasks'][i].update({'status': s2, 'n': len(items2), 'unk': _unk_n(items2), 'msg': msg2, 'read': stats2['read'], 'drop': stats2['drop'], 'via': 'brightdata'})
                     _add_results(job, items2)
                 return
             if stats2.get('why') == 'zero':  # la pagina e' arrivata e dice che per questa ricerca non c'e' nulla: inutile aprirla anche con il browser
@@ -3272,7 +3291,7 @@ def run_job(job_id, payload):
             bq.put((i, task))
             return
         with JOBS_LOCK:
-            job['tasks'][i].update({'status': status, 'n': len(items), 'msg': msg, 'read': stats['read'], 'drop': stats['drop'], 'note': note})
+            job['tasks'][i].update({'status': status, 'n': len(items), 'unk': _unk_n(items), 'msg': msg, 'read': stats['read'], 'drop': stats['drop'], 'note': note})
             _add_results(job, items)
 
     def do_disc(i, d):
@@ -3318,7 +3337,7 @@ def browser_worker(job, crit, bq, bd_after=None):
             return False
         s2, items2, msg2, stats2 = res
         with JOBS_LOCK:
-            job['tasks'][i].update({'status': s2, 'n': len(items2), 'msg': msg2, 'read': stats2['read'], 'drop': stats2['drop'], 'via': 'brightdata'})
+            job['tasks'][i].update({'status': s2, 'n': len(items2), 'unk': _unk_n(items2), 'msg': msg2, 'read': stats2['read'], 'drop': stats2['drop'], 'via': 'brightdata'})
             _add_results(job, items2)
         return True
 
@@ -3376,7 +3395,7 @@ def browser_worker(job, crit, bq, bd_after=None):
             if stats.get('why') in ('regole', 'bloccato', 'errore', 'vuoto') and reserve(i, task):
                 continue
             with JOBS_LOCK:
-                job['tasks'][i].update({'status': status, 'n': len(items), 'msg': msg, 'read': stats['read'], 'drop': stats['drop'], 'via': 'browser'})
+                job['tasks'][i].update({'status': status, 'n': len(items), 'unk': _unk_n(items), 'msg': msg, 'read': stats['read'], 'drop': stats['drop'], 'via': 'browser'})
                 _add_results(job, items)
     finally:
         if opened:
@@ -3492,7 +3511,7 @@ def import_page(payload):
     job = JOBS[job_id]
     _diag(job, task, base, 'incollata', html, '%d annunci letti' % len(found))
     with JOBS_LOCK:
-        job['tasks'].append({'site': name, 'country': country, 'status': 'ok' if kept else 'vuoto', 'n': len(kept), 'manual': True,
+        job['tasks'].append({'site': name, 'country': country, 'status': 'ok' if kept else 'vuoto', 'n': len(kept), 'unk': _unk_n(kept), 'manual': True,
                              'msg': _summary(len(found), kept, dropped) if found else 'Nessun annuncio riconosciuto nella pagina incollata.', 'read': len(found), 'drop': dropped})
         _add_results(job, kept)
     marks_flush()
