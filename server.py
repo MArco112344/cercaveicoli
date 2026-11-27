@@ -68,9 +68,9 @@ BOOT = secrets.token_hex(6)  # cambia a ogni avvio: la pagina se ne accorge e si
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 MAX_PAGES_PER_SCAN = 60
-VERSION = '2.9'
+VERSION = '3.0'
 # Lettura diretta: il programma si presenta con il proprio nome, senza fingersi un browser
-UA = "CercaveicoliImport/2.9 (ricerca auto avviata dall'utente; poche pagine per sito)"
+UA = "CercaveicoliImport/3.0 (ricerca auto avviata dall'utente; poche pagine per sito)"
 ROBOT_NAME = 'cercaveicoliimport'
 DIRECT_GAP = float(os.environ.get('CV_DIRECT_GAP') or 1.2)  # secondi tra due letture dello stesso sito
 TEST_ORIGIN = os.environ.get('CV_TEST_ORIGIN', '').rstrip('/')  # solo per le prove
@@ -2744,6 +2744,478 @@ def judge_all(found, crit, trust=()):
 
 
 # --------------------------------------------------------------------------
+# Scheda del singolo annuncio
+# --------------------------------------------------------------------------
+# L'elenco dei risultati di molti siti non riporta tutto: Kleinanzeigen, per esempio, mostra titolo, prezzo, km e
+# immatricolazione, ma non il cambio. Quando a un annuncio manca un dato richiesto, il programma apre la pagina di
+# quell'annuncio e lo legge li'. Valgono le regole di sempre: conta solo quello che la scheda dichiara in una riga
+# "etichetta: valore" o nei dati strutturati della pagina, mai una parola trovata nel testo libero; e solo sui siti
+# dove la scheda e' stata guardata a mano (elenco qui sotto, schede viste il 27/11/2026).
+DETAIL_HOSTS = ('kleinanzeigen.de', 'quoka.de', 'luxauto.lu', 'marktplaats.nl', '2dehands.be', '2ememain.be', 'leboncoin.fr',
+                'paruvendu.fr', 'aramisauto.com', 'largus.fr', 'mobile.de')
+DETAIL_MAX = 40          # schede per sito e per ricerca, al massimo
+DETAIL_BROWSER_MAX = 5   # con il browser del computer ogni scheda costa qualche secondo
+DETAIL_LABELS = dict((lab, field) for field, labs in {
+    'gear': 'getriebe|getriebeart|schaltung|boite de vitesse|boite de vitesses|boite a vitesses|boite|transmission|cambio|tipo de cambio|caja de cambios|transmision|'
+            'versnelling|versnellingsbak|transmissie|gearbox|tipo di cambio',
+    'fuel': 'kraftstoff|kraftstoffart|treibstoff|carburant|energie|combustible|brandstof|fuel|fuel type|alimentazione|carburante',
+    'power': 'leistung|motorleistung|puissance|puissance din|potencia|vermogen|power|potenza',
+    'km': 'kilometerstand|kilometrage|kilometraje|kilometros|mileage|chilometraggio|tellerstand',
+    'year': 'erstzulassung|ez|baujahr|annee|annee-modele|annee modele|mise en circulation|date de mise en circulation|date de 1ere immatriculation|ano|'
+            'fecha de matriculacion|bouwjaar|year|first registration|immatricolazione|anno',
+    'seller': 'anbieter|anbietertyp|verkaufer|vendeur|type de vendeur|vendedor|tipo de vendedor|verkoper|seller',
+    'body': 'fahrzeugtyp|karosserie|karosserieform|kategorie|carrosserie|type de vehicule|carroceria|body type|carrozzeria',
+    'color': 'außenfarbe|aussenfarbe|farbe|couleur|couleur exterieure|color|color exterior|kleur|colore',
+    'doors': 'anzahl turen|turen|portes|nombre de portes|puertas|deuren|aantal deuren|doors|porte',
+    'seats': 'sitze|sitzplatze|anzahl sitzplatze|places|nombre de places|plazas|zitplaatsen|aantal zitplaatsen|seats|posti',
+    'drive': 'antrieb|antriebsart|traccion|aandrijving|drive type|trazione|roues motrices',
+    'cond': 'fahrzeugzustand|zustand|etat|estado|staat',
+}.items() for lab in labs.split('|'))
+DETAIL_DESC_IDS = {'viewad-description-text'}   # Kleinanzeigen: il testo scritto dal venditore
+DETAIL_FEAT_CLASSES = {'checktag'}              # Kleinanzeigen: le dotazioni spuntate dal venditore
+DETAIL_SELLER_LINES = {'privater nutzer': 'Privato', 'gewerblicher nutzer': 'Concessionario'}  # Kleinanzeigen, nel riquadro del venditore
+DETAIL_UNITS = re.compile(r'^(?:ps|cv|ch|kw|pk|hp|km)\b', re.I)
+BODY_SURE = ('SW', 'CA', 'CO')  # "Limousine" e "Berline" nelle schede indicano anche le due volumi: non dicono la carrozzeria
+
+
+class _DetailDoc(HTMLParser):
+    """Il testo della scheda, un pezzo per ogni nodo di testo, saltando menu, moduli e programmi della pagina."""
+    SKIP = {'script', 'style', 'noscript', 'svg', 'template', 'select', 'button', 'nav', 'footer'}
+
+    def __init__(self):
+        HTMLParser.__init__(self, convert_charrefs=True)
+        self.chunks, self.h1, self.title, self.price = [], [], [], None
+        self.zones = {'desc': [], 'feat': []}
+        self._skip = self._h1 = self._title = 0
+        self._zone = []  # [nome, tag, quante volte quel tag e' aperto dentro la zona]
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP:
+            self._skip += 1
+            return
+        if self._skip:
+            return
+        a = dict((k, v or '') for k, v in attrs)
+        if tag == 'meta':
+            if a.get('itemprop', '').lower() == 'price' or a.get('property', '').lower() in ('product:price:amount', 'og:price:amount'):
+                self.price = self.price or a.get('content')
+            return
+        if tag in VOID_TAGS:
+            return
+        if tag == 'h1':
+            self._h1 += 1
+        elif tag == 'title':
+            self._title += 1
+        for z in self._zone:
+            if z[1] == tag:
+                z[2] += 1
+        cls = set(a.get('class', '').split())
+        name = 'desc' if a.get('id') in DETAIL_DESC_IDS else ('feat' if cls & DETAIL_FEAT_CLASSES else '')
+        if name:
+            self._zone.append([name, tag, 1])
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP:
+            self._skip = max(0, self._skip - 1)
+            return
+        if self._skip:
+            return
+        if tag == 'h1':
+            self._h1 = max(0, self._h1 - 1)
+        elif tag == 'title':
+            self._title = 0
+        for z in self._zone:
+            if z[1] == tag:
+                z[2] -= 1
+        self._zone = [z for z in self._zone if z[2] > 0]
+
+    def handle_data(self, data):
+        if self._skip:
+            return
+        t = ' '.join(data.replace(' ', ' ').replace(' ', ' ').replace('​', '').split())
+        if not t:
+            return
+        if self._title:
+            self.title.append(t)
+            return
+        if self._h1:
+            self.h1.append(t)
+        for z in self._zone:
+            self.zones[z[0]].append(t)
+        self.chunks.append(t)
+
+
+def _detail_label(text):
+    return DETAIL_LABELS.get(_plain(text).rstrip(' :').strip())
+
+
+def _detail_pairs(chunks):
+    """Righe "etichetta - valore" della scheda. Due forme: l'etichetta in un nodo e il valore nel successivo (le tabelle dei dati),
+    oppure "Etichetta: valore" nello stesso nodo (elenchi puntati e testo del venditore). Se la scheda ha una tabella dei dati, le
+    seconde non contano affatto: in fondo alle schede ci sono spesso altri annunci, con le loro frasi."""
+    table, inline, n = {}, {}, len(chunks)
+    for i, t in enumerate(chunks):
+        field, val = _detail_label(t) if len(t) <= 40 else None, None
+        if field:
+            j = i + 1
+            if j < n and chunks[j] in (':', '-', '–'):
+                j += 1
+            if j < n and not _detail_label(chunks[j]):
+                val = chunks[j]
+                if field in ('power', 'km') and re.fullmatch(r"[\d.,\s']+", val) and j + 1 < n and DETAIL_UNITS.match(chunks[j + 1]):
+                    val += ' ' + chunks[j + 1]  # "105" e "PS" in due nodi
+        else:
+            m = re.match(r'^([^:]{2,34}?)\s*:\s*(\S.{0,59})$', t)
+            if m:
+                field = _detail_label(m.group(1))
+                val = m.group(2) if field else None
+                if field and val and len(val) <= 60:
+                    inline.setdefault(field, []).append(val.strip())
+            continue
+        if field and val and len(val) <= 60:
+            table.setdefault(field, []).append(val.strip())
+    if any(f in table for f in ('gear', 'fuel', 'power', 'km', 'year')):
+        return table  # la scheda ha la sua tabella dei dati: le frasi "Etichetta: valore" sparse nella pagina sono testo libero, anche di altri annunci
+    return dict((f, table.get(f) or inline.get(f)) for f in set(table) | set(inline))
+
+
+def _gear_value(v):
+    """Cambio dal valore di una riga "Cambio" ("Automatik", "schaltgetriebe (5+1)", "Handgeschakeld 6 versnellingen")."""
+    p = _plain(re.sub(r'\(.*?\)', ' ', str(v or '')))
+    g = gear_label(p, True)
+    if g:
+        return g
+    a = re.search(r'automat|automaat|(?<![a-z])auto(?![a-z])|dsg|doppelkuppl|double embrayage|doble embrague|tiptronic|stufenlos|cvt|robot|sequen', p)
+    m = re.search(r'manu|schalt|handgesch|mecani|meccanic', p)
+    return 'A' if a and not m else ('M' if m and not a else None)
+
+
+def _km_value(v):
+    m = re.match(r"^\s*(\d{1,3}(?:[.\s']\d{3})+|\d{1,7})\s*(?:km|kms)?\.?\s*$", str(v or '').replace(' ', ' ').replace(' ', ' '), re.I)
+    n = to_int(m.group(1)) if m else None
+    return n if n is not None and n < 2000000 else None
+
+
+def _det_year(v):
+    return _year_from(v) if len(str(v or '')) <= 24 else None
+
+
+def _det_seller(v):
+    return seller_word(v) or seller_hint(v) or None
+
+
+def _det_fuel(v):
+    return fuel_label(v) or ('B' if _plain(v) in ('gasoline', 'petrol') else None)
+
+
+def _ld_power(node):
+    """Potenza in CV dai dati strutturati (vehicleEngine.enginePower), oppure None."""
+    eng = node.get('vehicleEngine')
+    eng = eng[0] if isinstance(eng, list) and eng else eng
+    pw = eng.get('enginePower') if isinstance(eng, dict) else None
+    pw = pw[0] if isinstance(pw, list) and pw else pw
+    if not isinstance(pw, dict) or pw.get('value') in (None, ''):
+        return None
+    unit = _plain(str(pw.get('unitCode') or '') + ' ' + str(pw.get('unitText') or ''))
+    try:
+        val = float(str(pw['value']).replace(',', '.'))
+    except ValueError:
+        return None
+    cv = val * 1.35962 if ('kwt' in unit or 'kw' in unit.split()) else (val if re.search(r'bhp|n12|ps|cv|ch|hp|pk', unit) else None)
+    return int(round(cv)) if cv and 40 <= cv <= 1600 else None
+
+
+def _detail_ld(html):
+    """Il veicolo descritto dai dati strutturati della scheda, solo se e' uno solo: molte schede elencano anche altri annunci."""
+    nodes = []
+
+    def walk(n, depth=0):
+        if depth > 10:
+            return
+        if isinstance(n, list):
+            for x in n:
+                walk(x, depth + 1)
+        elif isinstance(n, dict):
+            types = n.get('@type')
+            types = [str(t).lower() for t in (types if isinstance(types, list) else [types]) if t]
+            if any(t in LD_TYPES for t in types) and any(n.get(k) not in (None, '', [], {}) for k in ('vehicleTransmission', 'fuelType', 'mileageFromOdometer', 'vehicleEngine')):
+                nodes.append(n)
+                return
+            for v in n.values():
+                if isinstance(v, (dict, list)):
+                    walk(v, depth + 1)
+    for body in LD_RE.findall(html):
+        try:
+            walk(json.loads(body.strip()))
+        except ValueError:
+            continue
+    if len(nodes) != 1:
+        return {}
+    n, out = nodes[0], {}
+    first = lambda v: v[0] if isinstance(v, list) and v else v
+    out['gear'] = _gear_value(first(n.get('vehicleTransmission'))) if isinstance(first(n.get('vehicleTransmission')), str) else None
+    out['fuel'] = _det_fuel(first(n.get('fuelType'))) if isinstance(first(n.get('fuelType')), str) else None
+    mil = first(n.get('mileageFromOdometer'))
+    mil = mil.get('value') if isinstance(mil, dict) else mil
+    try:
+        out['km'] = int(float(mil)) if mil not in (None, '') and not isinstance(mil, bool) else None
+    except (TypeError, ValueError):
+        out['km'] = _km_value(mil)
+    out['year'] = next((y for y in (_year_from(n.get(k)) for k in ('dateVehicleFirstRegistered', 'vehicleModelDate', 'productionDate', 'modelDate')) if y), None)
+    out['power'] = _ld_power(n)
+    offers = first(n.get('offers'))
+    if isinstance(offers, dict) and 'offerCount' not in offers:
+        try:
+            out['price'] = int(float(str(offers.get('price')).replace(',', '.'))) if offers.get('price') not in (None, '') else None
+        except ValueError:
+            out['price'] = to_int(offers.get('price'))
+        who = offers.get('seller') or offers.get('offeredBy') or n.get('seller')
+        if isinstance(who, dict):
+            kind = _plain(str(first(who.get('@type')) or ''))
+            out['seller'] = 'Privato' if kind == 'person' else ('Concessionario' if kind in ('autodealer', 'organization', 'localbusiness', 'automotivebusiness', 'corporation') else None)
+    out['name'] = str(n.get('name') or '')
+    out['desc'] = str(n.get('description') or '') if isinstance(n.get('description'), str) else ''
+    out['color'] = first(n.get('color')) if isinstance(first(n.get('color')), str) else ''
+    return dict((k, v) for k, v in out.items() if v not in (None, ''))
+
+
+def _same(a, b, field):
+    if field == 'power':
+        return abs(a - b) <= 3
+    if field == 'km':
+        return abs(a - b) <= max(500, 0.01 * max(a, b))
+    if field == 'fuel':
+        return a == b or {a, b} in ({'B', 'MB'}, {'D', 'MD'}, {'M', 'MB'}, {'M', 'MD'})
+    return a == b
+
+
+def read_detail(html, url, item):
+    """Legge la scheda di un annuncio. Restituisce (dati, '') oppure (None, motivo) se la pagina non e' la sua scheda.
+    dati: gear, fuel, power, km, year, seller, iva dove la scheda li dichiara; "text" = righe della scheda, dotazioni e
+    descrizione del venditore (per dotazioni, colore, porte, posti, trazione, danni dichiarati); "more" = carrozzeria."""
+    doc = _DetailDoc()
+    try:
+        doc.feed(html[:2000000])
+        doc.close()
+    except Exception:
+        pass  # pagina scritta male: vale quello che si e' riusciti a leggere
+    pairs, ld = _detail_pairs(doc.chunks), _detail_ld(html)
+    info = {}
+    for field, conv in (('gear', _gear_value), ('fuel', _det_fuel), ('power', power_from), ('km', _km_value), ('year', _det_year), ('seller', _det_seller)):
+        vals = []
+        for v in pairs.get(field, []):
+            c = conv(v)
+            if c and not any(_same(c, o, field) for o in vals):
+                vals.append(c)
+        a, b = (vals[0] if len(vals) == 1 else None), ld.get(field)  # due valori diversi nella stessa scheda: non si sceglie
+        if len(vals) > 1 and not b:
+            continue
+        if a and b and not _same(a, b, field):
+            continue  # la scheda e i dati strutturati non dicono la stessa cosa
+        if a or b:
+            info[field] = a or b
+    # e' davvero la scheda di questo annuncio? (annuncio tolto e rimando a un elenco, pagina di verifica, altro annuncio)
+    want = [t for t in re.findall(r'[a-z0-9]+', _plain(item.get('title') or '')) if len(t) >= 2][:12]
+    have = _compact(' '.join(doc.h1) + ' ' + ' '.join(doc.title) + ' ' + ld.get('name', ''))
+    title_ok = len(want) >= 2 and sum(1 for t in want if t in have) >= max(2, int(0.7 * len(want) + 0.999))
+    try:
+        dprice = int(float(str(doc.price).replace(',', '.'))) if doc.price not in (None, '') else None
+    except ValueError:
+        dprice = to_int(doc.price)
+    dprice = dprice or ld.get('price')
+    price_ok = None if not dprice or not item.get('price') else abs(dprice - item['price']) <= max(1, 0.02 * item['price'])
+    km_ok = None if info.get('km') is None or item.get('km') is None else _same(info['km'], item['km'], 'km')
+    if km_ok is False or (price_ok is False and km_ok is not True) or not (title_ok or (price_ok and km_ok)):
+        return None, 'la pagina non e\' la scheda di questo annuncio'
+    text, more = [], []
+    for v in pairs.get('gear', []):
+        if not _gear_value(v) and drive_hint(v) is not None:
+            text.append(v)  # "Transmission: Traction avant": sui siti francesi la stessa parola indica anche la trazione
+    for v in pairs.get('drive', []):
+        if drive_hint(v) is not None:
+            text.append(v)
+    for v in pairs.get('body', [])[:3]:
+        if any(body_ok(k, v) is True for k in BODY_SURE):
+            more.append(v)
+    for v in pairs.get('color', [])[:3] + ([ld['color']] if ld.get('color') else []):
+        text.append('colore ' + v)
+    for v in pairs.get('doors', [])[:1]:
+        d = [int(x) for x in re.findall(r'(?<!\d)[2-5](?!\d)', v)]
+        if d:
+            text.append('%d porte' % max(d))
+    for v in pairs.get('seats', [])[:1]:
+        m = re.search(r'(?<!\d)([2-9])(?!\d)', v)
+        if m:
+            text.append('%s posti' % m.group(1))
+    text += pairs.get('cond', [])[:2]
+    text += doc.zones['feat'][:60]
+    desc = ' '.join(doc.zones['desc']) or ld.get('desc', '')
+    if desc:
+        text.append(desc[:1500])
+    host = _host(url)
+    if not info.get('seller') and 'kleinanzeigen.' in host:
+        who = set(DETAIL_SELLER_LINES[_plain(c)] for c in doc.chunks if _plain(c) in DETAIL_SELLER_LINES)
+        if len(who) == 1:
+            info['seller'] = who.pop()
+    if text:
+        info['text'] = ' | '.join(text)[:3000]
+        iva = vat_hint(info['text'])
+        if iva is not None:
+            info['iva'] = iva
+    if more:
+        info['more'] = ' '.join(more)[:120]
+    return info, ''  # anche vuoto: e' la scheda giusta, ma non dice nulla in piu'
+
+
+# ---- schede gia' lette: restano su questo computer, cosi' la stessa scheda non si riapre a ogni ricerca ----
+DETAILS_PATH = os.path.join(data_dir(), 'schede.json')
+DETAILS_LOCK = threading.RLock()
+DETAILS = {'data': None, 'dirty': False}
+DETAILS_KEEP = 5000
+DETAILS_DAYS = 45
+DETAIL_OFF = {}             # (sito, strada) -> fino a quando non riprovarci: un sito che non da' le schede non va interrogato a ogni ricerca
+DETAIL_OFF_SECONDS = 6 * 3600
+DETAIL_BAD = {}             # scheda -> fino a quando non riaprirla: una scheda che non si e' lasciata leggere non va richiesta a ogni ricerca
+
+
+def _details():
+    with DETAILS_LOCK:
+        if DETAILS['data'] is None:
+            d = load_json(DETAILS_PATH, {})
+            DETAILS['data'] = d if isinstance(d, dict) else {}
+        return DETAILS['data']
+
+
+def detail_cached(key):
+    with DETAILS_LOCK:
+        e = _details().get(key)
+        if isinstance(e, dict) and isinstance(e.get('d'), dict) and time.time() - (e.get('t') or 0) < DETAILS_DAYS * 86400:
+            return e['d']
+    return None
+
+
+def detail_remember(key, info):
+    with DETAILS_LOCK:
+        _details()[key] = {'t': int(time.time()), 'd': info}
+        DETAILS['dirty'] = True
+
+
+def details_flush():
+    with DETAILS_LOCK:
+        d = DETAILS['data']
+        if d is None or not DETAILS['dirty']:
+            return
+        if len(d) > DETAILS_KEEP:  # restano le schede lette piu' di recente
+            d = dict(sorted(d.items(), key=lambda kv: (kv[1] or {}).get('t') or 0)[-int(DETAILS_KEEP * 0.8):])
+            DETAILS['data'] = d
+        save_json(DETAILS_PATH, d)
+        DETAILS['dirty'] = False
+
+
+def detail_host_ok(url):
+    h = _host(url)
+    return any(h == d or h.endswith('.' + d) for d in DETAIL_HOSTS)
+
+
+def _merge_detail(raw, info):
+    """L'annuncio com'e' nell'elenco, piu' quello che dice la sua scheda. I dati gia' presenti non si toccano."""
+    it = dict(raw)
+    for f in ('gear', 'fuel', 'power', 'km', 'year', 'seller'):
+        if not it.get(f) and it.get(f) != 0 and info.get(f):
+            it[f] = info[f]
+            if f == 'gear':
+                it['gsrc'] = 'scheda'
+            elif f == 'fuel':
+                it['fsrc'] = 'scheda'
+    if it.get('iva') is None and info.get('iva') is not None:
+        it['iva'] = info['iva']
+    if info.get('text'):
+        it['_txt'] = ((it.get('_txt') or '') + ' | ' + info['text'])[:4200]
+    if info.get('more'):
+        it['more'] = (str(it.get('more') or '') + ' ' + info['more']).strip()
+    return it
+
+
+def complete_details(task, crit, job, kept, raw, paths, cap, progress=None):
+    """Apre la scheda degli annunci a cui manca un dato richiesto e li rivaluta.
+    paths = [(nome, fetch), ...]: le strade per leggere una scheda, in ordine; una strada che il sito rifiuta (o che per
+    due schede di fila non da' dati) si lascia, e si passa alla successiva. cap = quante schede aprire al massimo.
+    Restituisce (annunci, conteggi): open = schede aperte, done = annunci completati, cache = schede gia' lette in passato,
+    drop = annunci scartati per quello che dice la scheda, left = annunci non aperti per via del limite."""
+    stats = {'open': 0, 'done': 0, 'cache': 0, 'drop': 0, 'left': 0}
+    todo = [x for x in kept if any(u != 'modello nel titolo' for u in (x.get('unk') or [])) and detail_host_ok(x.get('url')) and raw.get(url_key(x['url']))]
+    if not todo:
+        return kept, stats
+    todo.sort(key=lambda x: len(x['unk']))  # prima quelli a cui manca meno
+    site = _host(todo[0]['url'])
+    with DETAILS_LOCK:
+        paths = [p for p in paths if DETAIL_OFF.get((site, p[0]), 0) < time.time()]
+    fails, swap = {}, {}
+    planned = min(cap, sum(1 for x in todo if detail_cached(mark_key(x['url'])) is None and DETAIL_BAD.get(mark_key(x['url']), 0) <= time.time()))
+    for x in todo:
+        if job.get('cancel'):
+            break
+        key = mark_key(x['url'])
+        info = detail_cached(key)
+        if info is not None:
+            stats['cache'] += 1
+        elif DETAIL_BAD.get(key, 0) > time.time():
+            continue  # gia' provata da poco senza esito
+        elif stats['open'] >= cap or not paths:
+            stats['left'] += 1
+            continue
+        else:
+            stats['open'] += 1
+            if progress:
+                progress(stats['open'], planned)
+            for name, fetch in list(paths):
+                st, html, final = fetch(x['url'])
+                if st == 'ok':
+                    page = html[-1] if isinstance(html, list) else html
+                    info, why = read_detail(page, final or x['url'], raw[url_key(x['url'])])
+                    _diag(job, task, x['url'], 200, page, 'scheda: ' + ('letta' if info else why))
+                    if info is not None:  # e' la scheda di questo annuncio (anche se non aggiunge nulla): la strada funziona
+                        fails[name] = 0
+                        detail_remember(key, info)
+                        break
+                    fails[name] = fails.get(name, 0) + 1
+                else:
+                    _diag(job, task, x['url'], st, '', 'scheda: ' + str(html))
+                    if st == 'assente':
+                        break  # annuncio tolto nel frattempo: non dipende dalla strada
+                    fails[name] = 2 if st in ('regole', 'bloccato') else fails.get(name, 0) + 1
+                if fails[name] < 2:
+                    break
+                paths.remove((name, fetch))  # questa strada qui non porta dati: si prova la successiva, anche per questa scheda
+                with DETAILS_LOCK:
+                    DETAIL_OFF[(site, name)] = time.time() + DETAIL_OFF_SECONDS
+        if info is None:
+            with DETAILS_LOCK:
+                if len(DETAIL_BAD) > 20000:
+                    DETAIL_BAD.clear()
+                DETAIL_BAD[key] = time.time() + DETAIL_OFF_SECONDS
+        if not info:
+            continue
+        res, dropped = _judge_items(task, crit, [_merge_detail(raw[url_key(x['url'])], info)])
+        if not res:
+            swap[id(x)] = None
+            stats['drop'] += 1
+            continue
+        y = res[0]
+        got = [u for u in x['unk'] if u not in y['unk']]
+        if got:
+            y['det'] = got
+            swap[id(x)] = y
+            stats['done'] += 1
+    out = [swap.get(id(x), x) for x in kept]
+    with JOBS_LOCK:
+        tot = job.setdefault('det', {'open': 0, 'done': 0, 'cache': 0, 'drop': 0, 'left': 0})
+        for k in stats:
+            tot[k] = tot.get(k, 0) + stats[k]
+    return [x for x in out if x is not None], stats
+
+
+# --------------------------------------------------------------------------
 # Scansione
 # --------------------------------------------------------------------------
 CC = {'DE': 'de', 'BE': 'be', 'FR': 'fr', 'ES': 'es', 'NL': 'nl', 'AT': 'at', 'LU': 'lu'}
@@ -2859,8 +3331,9 @@ def _summary(read, kept, dropped):
     return msg
 
 
-def scan_site(task, crit, job, fetch, challenge=True):
-    """Legge un sito. fetch(url) restituisce ('ok', html, indirizzo finale) oppure (stato, messaggio, None) con stato
+def scan_site(task, crit, job, fetch, challenge=True, via='diretta'):
+    """Legge un sito. via = strada usata per l'elenco ('diretta', 'brightdata', 'browser'): serve a scegliere come aprire le schede.
+    fetch(url) restituisce ('ok', html, indirizzo finale) oppure (stato, messaggio, None) con stato
     'regole' (indirizzo escluso da robots.txt), 'bloccato' (richiesta rifiutata), 'assente' (pagina inesistente) o 'errore'.
     Gli indirizzi segnati "also" si leggono tutti (lo stesso modello puo' stare sotto due nomi); gli altri, dopo il primo,
     sono di riserva e servono solo se fin li' non e' uscito nessun annuncio."""
@@ -2872,6 +3345,9 @@ def scan_site(task, crit, job, fetch, challenge=True):
     pages = max(1, min(MAX_PAGES_PER_SITE, int(task.get('pages') or 1))) if paged else 1
     keys, all_kept, read, all_dropped, got = set(), [], 0, 0, False
     first_page = ['']
+    det = (job.get('detail') if isinstance(job, dict) else None) or {}
+    det_cap = int(det.get('cap') or 0)
+    raw = {}  # annunci con dati mancanti, come letti dall'elenco: servono per rivalutarli dopo aver letto la scheda
 
     def take(html, final, note):
         nonlocal read, all_dropped
@@ -2886,6 +3362,11 @@ def scan_site(task, crit, job, fetch, challenge=True):
         fresh = [x for x in found if url_key(x['url']) not in keys]
         keys.update(url_key(x['url']) for x in fresh)
         kept, dropped = _judge_items(task, crit, fresh)
+        if det_cap:
+            by = dict((url_key(x['url']), x) for x in fresh)
+            for x in kept:
+                if x.get('unk'):
+                    raw[url_key(x['url'])] = by.get(url_key(x['url']))
         _diag(job, task, final, 200, shots[-1], note % len(found))
         all_kept.extend(kept)
         read += len(fresh)
@@ -2932,10 +3413,22 @@ def scan_site(task, crit, job, fetch, challenge=True):
             if not n_fresh:
                 break
     if got:
+        dstat = None
+        if det_cap and raw and not job.get('cancel'):
+            paths = det['paths'](via, fetch, task) if callable(det.get('paths')) else [(via, fetch)]
+            prog = det.get('progress')
+            all_kept, dstat = complete_details(task, crit, job, all_kept, raw, paths, min(det_cap, DETAIL_BROWSER_MAX) if via == 'browser' else det_cap,
+                                               (lambda a, b: prog(task, a, b)) if prog else None)
+            all_dropped += dstat['drop']
         stats = {'read': read, 'drop': all_dropped}
+        if dstat and (dstat['open'] or dstat['cache']):
+            stats['det'] = dstat
         if read < THIN_PAGE:  # pochi annunci letti: se la pagina ne dichiara molti di piu', e' una pagina arrivata a meta'
             stats['total'] = _stated_total(first_page[0]) or 0
-        return ('ok' if all_kept else 'vuoto'), all_kept, _summary(read, all_kept, all_dropped), stats
+        msg = _summary(read, all_kept, all_dropped)
+        if dstat and dstat['open']:
+            msg += '. Schede aperte: %d' % dstat['open']
+        return ('ok' if all_kept else 'vuoto'), all_kept, msg, stats
     return status, [], last, {'read': 0, 'drop': 0, 'why': why}
 
 
@@ -3221,13 +3714,40 @@ def run_job(job_id, payload):
     if use_bd:
         with JOBS_LOCK:
             job['bd'] = usage
+    try:
+        det_cap = max(0, min(DETAIL_MAX, int(payload.get('details') or 0)))
+    except (TypeError, ValueError):
+        det_cap = 0
+    where = dict(((t.get('site'), t.get('country')), i) for i, t in enumerate(payload['jobs']))
+
+    def det_paths(via, fetch, task):
+        """Come aprire le schede di un sito: prima la lettura diretta (gratuita, e solo dove le regole del sito la ammettono);
+        se il sito non la da', la strada che ha letto l'elenco; per i siti letti direttamente, Bright Data solo se e' attivo."""
+        if payload.get('mode') == 'bd':
+            return [('brightdata', fetch)]
+        out = [('diretta', direct)]
+        if via == 'browser':
+            out.append((via, READER.fetch_detail))
+        elif via != 'diretta':
+            out.append((via, fetch))
+        elif use_bd and not usage.get('fail'):
+            out.append(('brightdata', make_fetch_bd(cfg, task.get('country'), usage)))
+        return out
+
+    def det_progress(task, done, planned):
+        i = where.get((task.get('site'), task.get('country')))
+        if i is not None:
+            with JOBS_LOCK:
+                job['tasks'][i].update({'status': 'schede', 'msg': 'Apre le schede degli annunci con dati mancanti: %d di %d.' % (done, planned), 'det': [done, planned]})
+    if det_cap:
+        job['detail'] = {'cap': det_cap, 'paths': det_paths, 'progress': det_progress}
     def bd_scan(task):
         """La stessa lettura fatta da Bright Data, con le pagine scelte dall'utente (ogni pagina e' una richiesta)."""
         t2 = dict(task)
         if task.get('urls'):
             t2['urls'] = [c for c in task['urls'] if isinstance(c, dict)][:3]
         try:
-            return scan_site(t2, crit, job, make_fetch_bd(cfg, task.get('country'), usage))
+            return scan_site(t2, crit, job, make_fetch_bd(cfg, task.get('country'), usage), via='brightdata')
         except Exception as e:
             log_error('lettura con Bright Data di %s' % task.get('site', '?'), e)
             return 'errore', [], 'Errore imprevisto (%s).' % type(e).__name__, {'read': 0, 'drop': 0, 'why': 'errore'}
@@ -3246,7 +3766,7 @@ def run_job(job_id, payload):
     def do_site(i, task):
         try:
             fetch = make_fetch_bd(cfg, task.get('country')) if payload.get('mode') == 'bd' else direct
-            status, items, msg, stats = scan_site(task, crit, job, fetch)
+            status, items, msg, stats = scan_site(task, crit, job, fetch, via='brightdata' if payload.get('mode') == 'bd' else 'diretta')
         except Exception as e:  # una pagina strana non deve fermare le altre
             log_error('lettura di %s' % task.get('site', '?'), e)
             status, items, msg, stats = 'errore', [], 'Errore imprevisto (%s: %s). Dettagli nel file errore.txt.' % (type(e).__name__, str(e)[:100]), {'read': 0, 'drop': 0}
@@ -3322,6 +3842,7 @@ def run_job(job_id, payload):
                 job['hint'] = NET_HINTS.get(kinds[0], NET_HINTS['altro'])
         job['done'] = True
     marks_flush()
+    details_flush()
 
 
 def browser_worker(job, crit, bq, bd_after=None):
@@ -3377,7 +3898,7 @@ def browser_worker(job, crit, bq, bd_after=None):
                 job['tasks'][i].update({'status': 'browser', 'msg': 'Il browser sta leggendo il sito.'})
             for attempt in (1, 2):
                 try:
-                    status, items, msg, stats = scan_site(dict(task, pages=min(BROWSER_PAGES, int(task.get('pages') or 1))), crit, job, READER.fetch, challenge=False)
+                    status, items, msg, stats = scan_site(dict(task, pages=min(BROWSER_PAGES, int(task.get('pages') or 1))), crit, job, READER.fetch, challenge=False, via='browser')
                 except Exception as e:
                     log_error('lettura con il browser di %s' % task.get('site', '?'), e)
                     status, items, msg, stats = 'errore', [], 'Errore imprevisto (%s: %s). Dettagli nel file errore.txt.' % (type(e).__name__, str(e)[:100]), {'read': 0, 'drop': 0}
@@ -3437,6 +3958,7 @@ def retry_job(job_id):
             with JOBS_LOCK:
                 job['done'] = True
             marks_flush()
+            details_flush()
     threading.Thread(target=run, daemon=True).start()
     return len(todo)
 
@@ -3522,7 +4044,7 @@ def import_page(payload):
 def export_csv(job):
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';', lineterminator='\r\n')
-    w.writerow(['Veicolo', 'Prezzo EUR', 'Km', 'Anno', 'Cambio', 'Alimentazione', 'Potenza CV', 'Paese', 'Sito', 'Venditore', 'IVA detraibile', 'Dati mancanti', 'Link', 'Interessante', 'Nuovo'])
+    w.writerow(['Veicolo', 'Prezzo EUR', 'Km', 'Anno', 'Cambio', 'Alimentazione', 'Potenza CV', 'Paese', 'Sito', 'Venditore', 'IVA detraibile', 'Dati mancanti', 'Link', 'Interessante', 'Nuovo', 'Letto nella scheda'])
     pub = marks_public()
     hid, fav = set(pub['hiddenKeys']), set(pub['favKeys'])
     for r in sorted(job['results'], key=lambda x: (bool(x.get('unk')), x.get('price') is None, x.get('price') or 0)):
@@ -3530,7 +4052,7 @@ def export_csv(job):
             continue  # annuncio nascosto dall'utente
         w.writerow([r.get('title', ''), r.get('price') or '', r.get('km') if r.get('km') is not None else '', r.get('year') or '',
                     GEAR_LABEL.get(r.get('gear'), ''), FUEL_LABEL.get(r.get('fuel'), ''), r.get('power') or '', r.get('country', ''), r.get('site', ''), r.get('seller', ''),
-                    'si' if r.get('iva') else '', ', '.join(r.get('unk') or []), r.get('url', ''), 'si' if fav & set(item_keys(r)) else '', 'si' if r.get('new') else ''])
+                    'si' if r.get('iva') else '', ', '.join(r.get('unk') or []), r.get('url', ''), 'si' if fav & set(item_keys(r)) else '', 'si' if r.get('new') else '', ', '.join(r.get('det') or [])])
     return ('﻿' + buf.getvalue()).encode('utf-8')
 
 
@@ -4023,6 +4545,22 @@ class Reader(object):
         except (OSError, TimeoutError, ValueError, KeyError):
             return ''
 
+    def fetch_detail(self, url):
+        """Per la scheda di un singolo annuncio: la pagina com'e'. Se il sito chiede una verifica la scheda si lascia perdere:
+        le verifiche da mostrare all'utente riguardano solo gli elenchi dei risultati."""
+        try:
+            info, html = self.read(url)
+        except ReaderError as e:
+            return 'errore', str(e), None
+        final, code = info.get('u') or url, int(info.get('code') or 0)
+        if code in (404, 410):
+            return 'assente', 'Pagina non trovata sul sito.', None
+        if code in (401, 403, 429, 503) or CH_TITLE.search(info.get('t') or ''):
+            return 'bloccato', 'Il sito chiede una verifica per aprire le schede.', None
+        if code >= 500:
+            return 'errore', 'Il sito ha risposto con un errore (%d).' % code, None
+        return 'ok', html, final
+
     def fetch(self, url):
         """Per scan_site: ('ok', [pagine], indirizzo) oppure ('verifica' | 'assente' | 'errore', messaggio, None)."""
         try:
@@ -4212,7 +4750,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, {'error': 'Scansione non trovata.'})
             with JOBS_LOCK:
                 return self._send(200, {'tasks': job['tasks'], 'results': job['results'], 'found': job['found'], 'done': job['done'], 'hint': job.get('hint', ''),
-                                        'reader': job.get('reader') or {}, 'bd': job.get('bd') or None})
+                                        'reader': job.get('reader') or {}, 'bd': job.get('bd') or None, 'det': job.get('det') or None})
         if u.path == '/api/export':
             job = JOBS.get((q.get('job') or [''])[0])
             if not job:
@@ -4365,6 +4903,7 @@ def main():
     SERVER_URL = url
     atexit.register(_shutdown_reader)
     atexit.register(marks_flush)
+    atexit.register(details_flush)
     try:
         if adopt_old_config():
             print('Ho ripreso la chiave Bright Data salvata nella versione precedente.')

@@ -1,18 +1,18 @@
 {
- "version": "2.9",
- "note": "più pagine lette su Kleinanzeigen, Leboncoin, Marktplaats, AutoUncle e mobile.de; annunci incompleti in evidenza",
+ "version": "3.0",
+ "note": "apre la scheda dell'annuncio quando mancano cambio, alimentazione o CV",
  "files": {
   "server.py": {
-   "sha256": "3e51a02960015f39c397ca3b60053c0e5514c3c11ac0c7a7854ff036f8f4dbb8",
-   "size": 226583
+   "sha256": "d37107452b6492dcbd0c46f7cba85def38eb07c6f246664f217b0f27ff65c447",
+   "size": 253364
   },
   "index.html": {
-   "sha256": "4f89622938baa2837ffa0433cef370fc10839b50604c0cefdaad3001c39325e5",
-   "size": 155310
+   "sha256": "b980750eae5ce72a5c702822a654cd24583e4c4eb19a805ad916b7cc97d2723c",
+   "size": 157516
   },
   "LEGGIMI.txt": {
-   "sha256": "0a798bfbf91d45881dedd806dcc49ca47ea828cf828743c0c8b63a4b2d67c826",
-   "size": 15950
+   "sha256": "f2bcf7f2f93585ee91503d380ee5380829f2c21304cbd60553460734d2ac8563",
+   "size": 18038
   },
   "cacert.pem": {
    "sha256": "d87887200c9a705dccc937b9b83b5e67e47024c4a4b7f9dd15700c72e0f55453",

@@ -102,6 +102,10 @@ COME VENGONO CONTROLLATI GLI ANNUNCI
   Un dato vale solo se l'annuncio lo dichiara (campo del sito, etichetta o
   sigla nel titolo). Nulla viene dedotto dal testo libero.
     - Un annuncio che non corrisponde viene scartato.
+    - Dalla versione 3.0, quando a un annuncio manca un dato richiesto il
+      programma apre la scheda di quell'annuncio e lo legge li' (vedi piu'
+      sotto "SCHEDE DEGLI ANNUNCI"). In tabella, sotto il titolo, c'e'
+      scritto "Letto nella scheda: cambio".
     - Un annuncio che non dichiara un dato richiesto (per esempio il cambio
       o il tetto panoramico) non entra tra i verificati. Sopra la tabella un
       riquadro dice quanti sono, che cosa non dichiarano e da quali siti
@@ -184,6 +188,33 @@ I SITI
   Tolti dall'elenco: Autohero (non vende ai commercianti), Gebrauchtwagen.de
   (e' lo stesso sito di 12Gebrauchtwagen) e Caradisiac (non ha piu' gli
   annunci dell'usato).
+  SCHEDE DEGLI ANNUNCI (dalla versione 3.0)
+  L'elenco dei risultati di molti siti non riporta tutto: Kleinanzeigen,
+  per esempio, mostra titolo, prezzo, km e immatricolazione, ma non il
+  cambio. Se chiedi "automatico", "diesel" o un certo numero di CV e
+  l'annuncio non lo dice, il programma apre la pagina di quell'annuncio e
+  legge il dato dalla sua tabella ("Getriebe: Automatik"). Poi:
+    - se il dato corrisponde, l'annuncio entra tra i verificati;
+    - se non corrisponde (cambio manuale, danno dichiarato...), lo scarta;
+    - se la scheda non lo dice, resta tra quelli con dati mancanti.
+  Vale solo quello che la scheda dichiara in una riga "etichetta: valore"
+  o nei dati della pagina: mai una parola trovata nel testo libero. E il
+  programma controlla che la pagina sia proprio la scheda di quell'annuncio
+  (stesso titolo, oppure stesso prezzo e stessi km).
+  Siti con la scheda controllata a mano il 27/11/2026: Kleinanzeigen,
+  Quoka, Luxauto, Marktplaats, 2dehands, 2ememain, Leboncoin, ParuVendu,
+  Aramisauto, L'argus, mobile.de. Sugli altri siti le schede non si aprono.
+  Quante schede: 10 per sito a ogni ricerca (si cambia in "Opzioni": nessuna,
+  5, 10, 20, 40). Ogni scheda aggiunge circa un secondo alla ricerca su quel
+  sito. Le schede gia' lette restano in memoria su questo computer per 45
+  giorni (file schede.json nella cartella dei dati): rifacendo la stessa
+  ricerca non si riaprono, e il programma apre le successive.
+  Come le legge: direttamente, dove le regole del sito lo ammettono
+  (Kleinanzeigen si'; mobile.de no). Se il sito rifiuta, usa la strada che
+  ha letto l'elenco (il browser del computer, al massimo 5 schede per sito,
+  oppure Bright Data, se attivo: ogni scheda e' una richiesta). Se un sito
+  non da' le schede, il programma smette di chiederle per sei ore.
+
   PERCHE' ALCUNI SITI DANNO POCHI ANNUNCI (controllato il 24/11/2026)
   Alcuni siti scrivono nelle proprie regole (robots.txt) che i programmi
   non possono leggere le pagine di ricerca, o possono leggerne solo una

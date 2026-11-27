@@ -93,7 +93,7 @@ td.ph,th.ph{width:96px;padding:6px 0 6px 8px;cursor:default}
 #phBox .bar button,#phBox .bar a{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:7px 14px;font-size:14px;cursor:pointer;text-decoration:none}
 #phBox .bar button:disabled{opacity:.35;cursor:default}
 #phBox .ttl{color:#fff;font-size:15px;margin-bottom:10px;max-width:94vw;text-align:center}
-td a{color:var(--accent);font-weight:500}
+td a{color:var(--accent);font-weight:500;overflow-wrap:anywhere}
 #scanOut ul a{color:var(--accent)}
 .progress{display:flex;flex-wrap:wrap;gap:6px}
 .progress .pill.err{color:var(--bad);border-color:var(--bad)}
@@ -107,6 +107,7 @@ td a{color:var(--accent);font-weight:500}
 .understood span{font-weight:400;color:var(--muted)}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .sub .flag{color:var(--warn);font-weight:500}
+.sub .det{color:var(--accent);font-weight:500}
 .pick{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .pick label{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
 .pick select{font:inherit;font-size:15px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);min-width:180px;max-width:100%}
@@ -1220,7 +1221,7 @@ if(typeof module!=='undefined') module.exports = CV;
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   function store(k,v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)||'null'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
-  var PAGE_V = '2.9';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
+  var PAGE_V = '3.0';  // deve coincidere con la versione del programma: una scheda di una versione precedente viene aggiornata
   var DOWN_MSG = 'Il programma non risponde. Se la finestra nera è chiusa, fai doppio clic su Avvia.bat (su Mac: avvia.command): si apre una scheda nuova, usa quella.';
   var OLD_MSG = 'Questa scheda sta parlando con una versione vecchia del programma rimasta aperta. Chiudi tutte le finestre nere, poi fai doppio clic su Avvia.bat nella cartella nuova (Cercaveicoli-'+PAGE_V+').';
   function ss(k, v){ try{ if(v===undefined) return sessionStorage.getItem(k); if(v===null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); }catch(e){} return null; }
@@ -1458,6 +1459,7 @@ if(typeof module!=='undefined') module.exports = CV;
   }
   function knownSites(){ return allSites().map(function(s){ return {d:s.d, n:s.n, c:(s.c==='B2B' || s.c==='EU') ? '' : s.c}; }); }
   function hasKey(){ var s = LOCAL.status || {}; return !!(s.hasKey && s.zone); }
+  function detailsOpt(){ return $('scanDetails') ? +$('scanDetails').value : 10; }
   function useBDOpt(){ return hasKey() && !!$('useBD') && $('useBD').checked; }
   function activeList(){ return Object.keys(active).filter(function(k){ return active[k]; }); }
   function useBrowser(){ return $('useBrowser') ? $('useBrowser').checked : true; }
@@ -1489,6 +1491,7 @@ if(typeof module!=='undefined') module.exports = CV;
       + '<div class="row" style="margin-top:6px;align-items:center"><label class="opt" title="All\'avvio il programma controlla se c\'è una versione nuova, la scarica, la prova e si riavvia aggiornato."><input type="checkbox" id="autoUpd" checked> Aggiorna il programma da solo</label>'
       + '<button type="button" class="small ghost" id="updCheck">Cerca aggiornamenti adesso</button><span class="hint" id="updState"></span></div>'
       + '<div class="row"><label class="inline" for="scanPages" title="Vale per i siti che dividono i risultati in pagine. Più pagine = più annunci, ma la ricerca dura di più. Con Bright Data ogni pagina è una richiesta.">Pagine da leggere per sito, dove possibile<select id="scanPages"><option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="10" selected>10 (il massimo)</option></select></label></div>'
+      + '<div class="row"><label class="inline" for="scanDetails" title="Quando un annuncio non dichiara un dato che hai chiesto (cambio, alimentazione, CV…), il programma apre la sua scheda e lo legge lì. Più schede = più annunci completi, ma la ricerca dura qualche secondo in più per sito. Con Bright Data ogni scheda è una richiesta.">Schede da aprire per sito, quando a un annuncio mancano dati<select id="scanDetails"><option value="0">nessuna</option><option value="5">5</option><option value="10" selected>10</option><option value="20">20</option><option value="40">40 (il massimo)</option></select></label></div>'
       + '<details id="setBox"><summary>Bright Data (facoltativo): legge anche i siti che non rispondono</summary>'
       + '<div id="keyState"></div>'
       + '<label class="opt" style="margin:8px 0"><input type="checkbox" id="useBD"> Usa Bright Data per i siti che non si lasciano leggere</label>'
@@ -1501,6 +1504,11 @@ if(typeof module!=='undefined') module.exports = CV;
       + '</details></details>';
     $('useBrowser').checked = store('cv_browser') !== false;
     $('useBrowser').addEventListener('change', function(){ store('cv_browser', $('useBrowser').checked); showBrowserHelp(); });
+    if($('scanDetails')){
+      var savedDet = store('cv_details');
+      if(savedDet !== null && savedDet !== undefined && $('scanDetails').querySelector('option[value="'+(+savedDet)+'"]')) $('scanDetails').value = String(+savedDet);
+      $('scanDetails').addEventListener('change', function(){ store('cv_details', +$('scanDetails').value); });
+    }
     $('showReader').checked = store('cv_showreader') === true;
     $('showReader').addEventListener('change', function(){ store('cv_showreader', $('showReader').checked); });
     $('showPhotos').checked = store('cv_photos') !== false;
@@ -1591,7 +1599,7 @@ if(typeof module!=='undefined') module.exports = CV;
     $('scanState').innerHTML = '<p class="msg">Avvio la ricerca su '+jobs.length+' siti…</p>';
     busy(true);
     ss('cv_pending', JSON.stringify({q:$('q').value, t:Date.now()}));  // se la scheda era vecchia e si aggiorna, la ricerca riparte da sola
-    api('/api/scan', {mode:scan.mode, jobs:jobs, discover:disc, known:CV.SITES.map(function(s){ return s.d.split('/')[0]; }), criteria:critPayload(), browser:useBrowser(), showReader:showReaderOpt(), bdFallback:useBD})
+    api('/api/scan', {mode:scan.mode, jobs:jobs, discover:disc, known:CV.SITES.map(function(s){ return s.d.split('/')[0]; }), criteria:critPayload(), browser:useBrowser(), showReader:showReaderOpt(), bdFallback:useBD, details:detailsOpt()})
     .then(function(j){ ss('cv_pending', null); scan.job = j.job; scan.timer = setInterval(poll, 1200); poll(); })
     .catch(function(err){ if(!/Aggiorno la pagina/.test(err.message)) ss('cv_pending', null); busy(false); $('scanState').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
   }
@@ -1632,11 +1640,11 @@ if(typeof module!=='undefined') module.exports = CV;
       poll();
     }).catch(function(err){ $('pasteMsg').innerHTML = '<p class="msg bad">'+esc(err.message)+'</p>'; });
   }
-  var STATUS_TXT = {attesa:'in lettura…', bd:'lo sta leggendo Bright Data…', coda:'in attesa del browser', browser:'lo sta leggendo il browser…', vuoto:'nessun annuncio valido', bloccato:'non si lascia leggere', verifica:'chiede una verifica'};
+  var STATUS_TXT = {schede:'apre le schede…', attesa:'in lettura…', bd:'lo sta leggendo Bright Data…', coda:'in attesa del browser', browser:'lo sta leggendo il browser…', vuoto:'nessun annuncio valido', bloccato:'non si lascia leggere', verifica:'chiede una verifica'};
   function siteLabel(t){ return t.site+(t.country ? ' ('+t.country+')' : ''); }
   function renderScan(){
     var d = scan.data; if(!d) return;
-    var n = {ok:0, bloccato:0, vuoto:0, errore:0, attesa:0, bd:0, coda:0, browser:0, verifica:0};
+    var n = {ok:0, bloccato:0, vuoto:0, errore:0, attesa:0, bd:0, coda:0, browser:0, verifica:0, schede:0};
     d.tasks.forEach(function(t){ n[t.status] = (n[t.status]||0)+1; });
     var total = d.tasks.length, finished = n.ok + n.vuoto + n.bloccato + n.errore + n.verifica, rd = d.reader || {};
     $('progBox').hidden = false;
@@ -1644,7 +1652,7 @@ if(typeof module!=='undefined') module.exports = CV;
       var cls = t.status==='ok' ? 'ok' : (t.status==='errore' ? 'err' : ((t.status==='bloccato' || t.status==='verifica') ? 'lock' : ''));
       var tu = t.unk||0, tg = (t.n||0)-tu;
       var txt = t.status==='ok' ? (tg ? tg+(tg===1?' annuncio':' annunci')+(tu ? ' + '+tu+(tu===1?' incompleto':' incompleti') : '') : (tu ? tu+(tu===1?' annuncio incompleto':' annunci incompleti') : '0 annunci'))
-        : (STATUS_TXT[t.status] || t.msg);
+        : (t.status==='schede' && t.det ? 'apre le schede ('+t.det[0]+' di '+t.det[1]+')…' : (STATUS_TXT[t.status] || t.msg));
       return '<span class="pill '+cls+'" title="'+esc((t.msg||'')+(t.note ? ' '+t.note : ''))+'">'+esc(siteLabel(t))+(t.manual ? ', incollato' : (t.via==='browser' ? ', dal browser' : (t.via==='brightdata' ? ', da Bright Data' : '')))+': '+esc(txt)+'</span>';
     }).join('');
     // gli annunci nascosti dall'utente non contano e non si vedono, finche' non chiede di rivederli
@@ -1657,6 +1665,7 @@ if(typeof module!=='undefined') module.exports = CV;
       else if(rd.state==='avvio') line += ' Avvio il browser per i siti che rispondono solo a un browser…';
       else if(n.coda) line += ' '+n.coda+(n.coda===1 ? ' sito aspetta' : ' siti aspettano')+' il browser.';
       if(n.bd) line += ' Bright Data sta leggendo '+n.bd+(n.bd===1 ? ' sito.' : ' siti.');
+      if(n.schede) line += ' Apro le schede degli annunci con dati mancanti su '+n.schede+(n.schede===1 ? ' sito.' : ' siti.');
       $('scanState').innerHTML = '<p class="msg">'+esc(line)+'</p>';
       $('scanSum').innerHTML = ''; $('verifyBox').innerHTML = '';
     } else {
@@ -1665,6 +1674,7 @@ if(typeof module!=='undefined') module.exports = CV;
       if(n.bloccato) parts.push(n.bloccato+(n.bloccato===1?' non si è lasciato':' non si sono lasciati')+' leggere.');
       if(n.errore) parts.push(n.errore+' in errore.');
       if(d.bd && d.bd.n) parts.push('Pagine chieste a Bright Data: '+d.bd.n+(d.bd.ok < d.bd.n ? ' ('+d.bd.ok+' riuscite).' : '.'));
+      if(d.det && (d.det.open || d.det.cache)) parts.push('Schede aperte: '+d.det.open+(d.det.cache ? ' (più '+d.det.cache+' già lette in passato)' : '')+'; annunci completati: '+d.det.done+(d.det.drop ? ', scartati dopo la lettura: '+d.det.drop : '')+'.');
       var sum = d.hint ? '<p class="msg bad">'+esc(d.hint)+'</p>' : '<p class="msg'+(all.length?'':' warn')+'">'+esc(parts.join(' '))+'</p>';
       if(rd.state==='assente' && rd.msg) sum += '<p class="msg warn">'+esc(rd.msg)+'</p>';
       if(d.bd && d.bd.fail) sum += '<p class="msg warn">Bright Data si è fermato: '+esc(d.bd.fail)+' La chiave si controlla in Opzioni, Bright Data; il credito rimasto si vede nel pannello di Bright Data.</p>';
@@ -1711,7 +1721,8 @@ if(typeof module!=='undefined') module.exports = CV;
         all.forEach(function(r){ if(!(r.unk && r.unk.length)) return; r.unk.forEach(function(w){ what[w] = (what[w]||0)+1; }); where[r.site||'?'] = (where[r.site||'?']||0)+1; });
         var top = function(o, n){ var ks = Object.keys(o).sort(function(a,b){ return o[b]-o[a] || (a<b?-1:1); }); return ks.slice(0,n).map(function(k){ return k+' ('+o[k]+')'; }).join(', ')+(ks.length>n ? ' e altri' : ''); };
         out += '<div class="todo" id="unkBox" style="margin:0 0 10px"><p><strong>'+(unk===1 ? 'Un altro annuncio corrisponde' : 'Altri '+unk+' annunci corrispondono')+'</strong> alla richiesta per tutto quello che la scheda riporta, ma '
-          + (unk===1 ? 'non dichiara' : 'non dichiarano')+': '+esc(top(what, 5))+'. Succede spesso con gli annunci tra privati. '+(unk===1 ? 'Arriva' : 'Arrivano')+' da: '+esc(top(where, 6))+'.</p>'
+          + (unk===1 ? 'non dichiara' : 'non dichiarano')+': '+esc(top(what, 5))+'. Succede spesso con gli annunci tra privati. '+(unk===1 ? 'Arriva' : 'Arrivano')+' da: '+esc(top(where, 6))+'.'
+          + (d.det && d.det.left ? ' Per '+d.det.left+(d.det.left===1 ? ' annuncio' : ' annunci')+' non ho aperto la scheda: il limite è '+detailsOpt()+' per sito, e si alza in Opzioni.' : (detailsOpt() ? '' : ' L\'apertura delle schede è spenta: si accende in Opzioni.'))+'</p>'
           + '<div class="row"><button type="button" id="showUnkBtn">Mostrali in tabella</button></div></div>';
       }
       if(d.done && base.length && !newN) out += '<p class="hint" style="margin:0 0 8px">Nessun annuncio nuovo rispetto alle ricerche di prima.</p>';
@@ -1732,12 +1743,13 @@ if(typeof module!=='undefined') module.exports = CV;
           }).join(', '));
           if(r.dmg) sub.push('<span class="flag">Incidentata o con danni dichiarati</span>');
           if(r.unk && r.unk.length) sub.push('<span class="flag">Non indicato nell\'annuncio: '+esc(r.unk.join(', '))+'</span>');
+          if(r.det && r.det.length) sub.push('<span class="det">Letto nella scheda: '+esc(r.det.join(', '))+'</span>');
           var choice = hid ? '<button type="button" class="mk" data-a="unhide" data-i="'+ri+'" title="Torna a mostrarlo nelle ricerche">Ripristina</button>'
             : '<button type="button" class="mk'+(fav?' on':'')+'" data-a="'+(fav?'unfav':'fav')+'" data-i="'+ri+'" title="'+(fav ? 'Segnato come interessante: clicca per togliere il segno' : 'Lo salva tra gli interessanti: lo ritrovi anche nelle prossime ricerche')+'">'+(fav?'★':'☆')+' Interessante</button>'
             + '<button type="button" class="mk" data-a="hide" data-i="'+ri+'" title="Non mostrarlo più: sparisce da questa ricerca e non torna nelle prossime">✕ Nascondi</button>';
           return '<tr'+(hid?' class="hid"':'')+'>'+(photos ? photoCell(r, ri) : '')+'<td><a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">'+esc(r.title||'Annuncio')+'</a>'+(mixNew && r['new'] && !hid ? ' <span class="newb">nuovo</span>' : '')+(hid ? ' <span class="newb off">nascosto</span>' : '')+(sub.length ? '<div class="sub">'+sub.join(' · ')+'</div>' : '')+'<div class="mkr">'+choice+'</div></td>'
             + '<td class="num">'+fmt(r.price)+'</td><td class="num">'+fmt(r.km)+'</td><td class="num">'+(r.year||'')+'</td>'+(hasPw ? '<td class="num">'+(r.power||'')+'</td>' : '')
-            + '<td'+(r.gsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : '')+'>'+esc(GEAR_TXT[r.gear]||'')+'</td><td'+(r.fsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : '')+'>'+esc(FUEL_TXT[r.fuel]||'')+'</td><td>'+esc(r.country||'')+'</td><td>'+esc(r.site)+'</td></tr>';
+            + '<td'+(r.gsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : (r.gsrc==='scheda' ? ' title="Letto nella scheda dell\'annuncio"' : ''))+'>'+esc(GEAR_TXT[r.gear]||'')+'</td><td'+(r.fsrc==='titolo' ? ' title="Letto dalle sigle nel titolo"' : (r.fsrc==='scheda' ? ' title="Letto nella scheda dell\'annuncio"' : ''))+'>'+esc(FUEL_TXT[r.fuel]||'')+'</td><td>'+esc(r.country||'')+'</td><td>'+esc(r.site)+'</td></tr>';
         }).join('')
         + '</tbody></table></div>';
     } else if(d.done){
